@@ -8,7 +8,8 @@ using TMPro;
 /// <summary>
 /// Giao diện người chơi bằng tiếng Việt (tự dựng khi bấm Play, không cần kéo thả):
 /// - Góc dưới trái: thanh Máu (đỏ), Pháp lực (xanh lam), Kiếm ý (vàng kim) kèm số. Phía trên là ô "Q Ngự Kiếm Thuật" (khi tắt)
-///   hoặc ba ô đội hình Z/X/C kèm dòng "Kiếm: sẵn sàng/tổng" (khi bật).
+///   hoặc ba ô đội hình Z/X/C (Kiếm Luân / Vòng / Mũi tên) kèm dòng "Kiếm: sẵn sàng/tổng" (khi bật).
+///   Pháp lực đang bị rút nhanh (trên ngưỡng mỗi giây) thì thanh pháp lực chớp nhẹ và hiện "-N/s" trên thanh.
 /// - Giữa cạnh dưới: thanh ô đồ 6 ô kiểu Minecraft (phím 1-6 / lăn chuột), tên vật phẩm hiện 1.5 giây khi đổi ô.
 /// - Góc trên trái: tên cảnh giới.
 /// - Số sát thương bay lên khi đánh trúng, viền đỏ màn hình khi bị đánh, cảnh báo "Pháp lực không đủ".
@@ -77,6 +78,13 @@ public class HUD : MonoBehaviour
     [Tooltip("Màu nền ô đang chọn (sáng hơn).")]
     [SerializeField] private Color hotbarSelectedColor = new Color(0.22f, 0.18f, 0.07f, 0.92f);
 
+    [Header("Pháp lực bị rút nhanh (Ngự Kiếm Thuật)")]
+    [Tooltip("Tổng pháp lực tiêu hao mỗi giây vượt mức này thì thanh pháp lực chớp nhẹ và hiện con số tiêu hao (ví dụ -14/s).")]
+    [SerializeField, Min(0f)] private float drainWarnThreshold = 8f;
+
+    [Tooltip("Tốc độ chớp của thanh pháp lực khi bị rút nhanh (số lần mỗi giây).")]
+    [SerializeField, Min(0.1f)] private float drainPulseRate = 1.6f;
+
     [Header("Cảnh báo và hiệu ứng")]
     [Tooltip("Thời gian thanh Pháp lực nháy đỏ và dòng 'Pháp lực không đủ' hiện (giây).")]
     [SerializeField, Min(0.1f)] private float manaWarnTime = 1.2f;
@@ -136,6 +144,7 @@ public class HUD : MonoBehaviour
     private TextMeshProUGUI healthText, manaText, intentText, swordText, realmText, manaWarnText;
     private Image[] slotBack = new Image[3];
     private TextMeshProUGUI[] slotLabel = new TextMeshProUGUI[3];
+    private TextMeshProUGUI drainText;
     private RectTransform qBox;
     private TextMeshProUGUI qText;
 
@@ -190,7 +199,7 @@ public class HUD : MonoBehaviour
     private TextMeshProUGUI stonesPopup;
     private float stonesPopupStart = -10f;
 
-    private static readonly string[] SlotNames = { "Quạt", "Vòng", "Mũi tên" };
+    private static readonly string[] SlotNames = { "Kiếm Luân", "Vòng", "Mũi tên" };
     private static readonly string[] SlotKeys = { "Z", "X", "C" };
 
     private void Awake()
@@ -309,6 +318,12 @@ public class HUD : MonoBehaviour
         float y = -14f;
         healthFill = MakeBar(panel, "Máu", healthColor, ref y, out healthText, out _);
         manaFill = MakeBar(panel, "Pháp lực", manaColor, ref y, out manaText, out manaBack);
+        // Con số tiêu hao mỗi giây nằm ở đầu phải của thanh pháp lực (chỉ hiện khi bị rút nhanh)
+        drainText = MakeText(manaBack.rectTransform, "TieuHao", "", 18, TextAnchor.MiddleRight, new Color(1f, 0.92f, 0.92f));
+        Stretch(drainText.rectTransform);
+        drainText.rectTransform.offsetMax = new Vector2(-6f, 0f);
+        Outline(drainText);
+        drainText.gameObject.SetActive(false);
         intentFill = MakeBar(panel, "Kiếm ý", intentColor, ref y, out intentText, out intentBack);
 
         swordText = MakeText(panel, "Kiem", "Kiếm: 0/0", 24, TextAnchor.MiddleLeft, textColor);
@@ -353,7 +368,7 @@ public class HUD : MonoBehaviour
     /// <summary>Ba ô đội hình Z/X/C (khi Ngự Kiếm Thuật bật) hoặc ô "Q Ngự Kiếm Thuật" (khi tắt), nằm ngay phía trên bảng tài nguyên.</summary>
     private void BuildSlots()
     {
-        float w = 130f, h = 46f, gap = 10f;
+        float w = 140f, h = 46f, gap = 10f;
         for (int i = 0; i < 3; i++)
         {
             RectTransform slot = MakePanel("OĐộiHình" + SlotKeys[i], root, new Vector2(0f, 0f), new Vector2(0f, 0f),
@@ -361,6 +376,7 @@ public class HUD : MonoBehaviour
             slotBack[i] = slot.GetComponent<Image>();
             TextMeshProUGUI t = MakeText(slot, "Ten", SlotKeys[i] + "  " + SlotNames[i], 22, TextAnchor.MiddleCenter, textColor);
             Stretch(t.rectTransform);
+            t.enableAutoSizing = true; t.fontSizeMin = 14f; t.fontSizeMax = 22f;
             slotLabel[i] = t;
         }
 
@@ -649,7 +665,7 @@ public class HUD : MonoBehaviour
         lastPanelHeight = h;
         statusPanel.sizeDelta = new Vector2(PanelWidth, h);
 
-        float w = 130f, gap = 10f;
+        float w = 140f, gap = 10f;
         float boxesY = 30f + h + 12f;
         for (int i = 0; i < 3; i++) slotBack[i].rectTransform.anchoredPosition = new Vector2(30f + i * (w + gap), boxesY);
         qBox.anchoredPosition = new Vector2(30f, boxesY);
@@ -677,7 +693,23 @@ public class HUD : MonoBehaviour
             float blink = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 24f);
             manaFill.color = Color.Lerp(manaColor, new Color(1f, 0.15f, 0.12f), blink);
         }
-        else manaFill.color = manaColor;
+        else
+        {
+            // Pháp lực đang bị rút nhanh: chớp nhẹ
+            float drainNow = swarm != null ? swarm.CurrentDrainPerSecond : 0f;
+            if (drainNow > drainWarnThreshold)
+            {
+                float p = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * drainPulseRate * Mathf.PI * 2f);
+                manaFill.color = Color.Lerp(manaColor, new Color(0.7f, 0.88f, 1f), p * 0.55f);
+            }
+            else manaFill.color = manaColor;
+        }
+
+        // Con số tiêu hao mỗi giây trên thanh pháp lực
+        float drain = swarm != null ? swarm.CurrentDrainPerSecond : 0f;
+        bool showDrain = drain > drainWarnThreshold;
+        if (drainText.gameObject.activeSelf != showDrain) drainText.gameObject.SetActive(showDrain);
+        if (showDrain) drainText.text = "-" + Mathf.RoundToInt(drain) + "/s";
     }
 
     private void UpdateDeathFade()

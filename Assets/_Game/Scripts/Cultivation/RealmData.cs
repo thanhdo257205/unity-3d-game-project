@@ -13,7 +13,7 @@ public class RealmData : ScriptableObject
     [Tooltip("Thứ tự của cảnh giới trong thang tu luyện (tăng dần). Dùng để sắp xếp và để F4/F5 chuyển cảnh giới.")]
     [SerializeField, Min(0)] private int order;
 
-    [Tooltip("Thần thức: số phi kiếm tối đa điều khiển cùng lúc.")]
+    [Tooltip("Thần thức: số phi kiếm tối đa điều khiển cùng lúc (Luyện Khí 1-3: 6, 4-6: 12, 7-9: 20, Trúc Cơ: 28 / 36 / 44, Kết Đan: 56 / 68 / 80, Nguyên Anh: 100).")]
     [SerializeField, Min(0)] private int maxSwords = 3;
 
     [Tooltip("Pháp lực tối đa.")]

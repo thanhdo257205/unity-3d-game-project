@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RealmData
   displayName: "Luy\u1EC7n Kh\xED t\u1EA7ng 1"
   order: 0
-  maxSwords: 3
+  maxSwords: 6
   maxMana: 100
   majorRealm: 0
   unlockNote: "\u0110\u1ED9i h\xECnh M\u0169i t\xEAn"

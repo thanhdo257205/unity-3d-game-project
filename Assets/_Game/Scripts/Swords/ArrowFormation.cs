@@ -9,7 +9,7 @@ using UnityEngine;
 public class ArrowFormation : IFormation
 {
     [Tooltip("Số kiếm tối đa trong một hàng dọc. Nhiều hơn thì thêm hàng bên cạnh.")]
-    [Min(1)] public int columnCapacity = 12;
+    [Min(1)] public int columnCapacity = 10;
 
     [Tooltip("Khoảng cách giữa hai kiếm liền nhau theo chiều dọc (mét).")]
     [Min(0.05f)] public float verticalSpacing = 0.14f;

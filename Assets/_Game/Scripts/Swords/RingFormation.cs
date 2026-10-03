@@ -15,7 +15,7 @@ public class RingFormation : IFormation
     public float spinSpeed = 180f;
 
     [Tooltip("Số kiếm tối đa trong một vòng. Nhiều hơn thì thêm vòng ngoài quay ngược chiều.")]
-    [Min(1)] public int layerCapacity = 12;
+    [Min(1)] public int layerCapacity = 10;
 
     [Tooltip("Khoảng cách giữa các vòng (mét).")]
     [Min(0f)] public float layerSpacing = 0.3f;

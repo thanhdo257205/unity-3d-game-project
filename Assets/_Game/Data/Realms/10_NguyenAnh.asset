@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RealmData
   displayName: "Nguy\xEAn Anh"
   order: 9
-  maxSwords: 72
+  maxSwords: 100
   maxMana: 2500
   majorRealm: 3
   unlockNote: "(ngo\xE0i demo)"

@@ -16,7 +16,7 @@ public enum SwordMode
 /// Một thanh phi kiếm. Gắn ở gốc prefab (cùng với Trail Renderer).
 /// Kiếm không tự cập nhật: SwordSwarm gọi <see cref="Tick"/> mỗi khung hình để mọi kiếm chạy đúng thứ tự.
 /// - Trong đội hình: bay tới vị trí đích bằng lò xo (mượt, hơi nảy), không dịch chuyển tức thời.
-/// - Mũi kiếm luôn quay theo hướng bay; khi đã yên vị thì theo hướng của đội hình (Quạt: chĩa ra ngoài).
+/// - Mũi kiếm luôn quay theo hướng bay; khi đã yên vị thì theo hướng của đội hình (Kiếm Luân: chĩa ra ngoài).
 /// - Khi tấn công: lao thẳng tới điểm đích, chém trúng thì gây sát thương rồi bay về.
 /// Quy ước mô hình: pivot ở giữa chuôi, mũi kiếm là trục +Z, mặt phẳng lưỡi vuông góc trục Y.
 /// </summary>
@@ -116,6 +116,10 @@ public class FlyingSword : MonoBehaviour
     private float despawnElapsed;
     private Vector3 despawnStart;
     private float despawnStartScale = 1f;
+    private float spawnTime;               // lúc sinh ra: một lúc đầu bay tới chỗ đứng nhanh hơn bình thường
+
+    /// <summary>Giờ (Time.time) kiếm này tới lượt bay về túi khi tắt Ngự Kiếm Thuật; âm = chưa phải về.</summary>
+    public float RetireAt = -1f;
 
     /// <summary>Đàn kiếm sở hữu thanh kiếm này.</summary>
     public SwordSwarm Swarm { get; private set; }
@@ -143,6 +147,7 @@ public class FlyingSword : MonoBehaviour
     {
         Swarm = swarm;
         Index = index;
+        spawnTime = Time.time;
         if (trail == null) trail = GetComponent<TrailRenderer>();
         if (model == null && transform.childCount > 0) model = transform.GetChild(0);
         if (trail != null)
@@ -301,7 +306,9 @@ public class FlyingSword : MonoBehaviour
                     transform.rotation = Quaternion.Slerp(transform.rotation, guardRotation, 1f - Mathf.Exp(-30f * dt));
                     break;
                 }
-                SpringTo(slot.position, slotVelocity, Swarm.FormationSettleTime, dt);
+                // Mới bay ra khỏi túi: vào chỗ nhanh hơn để bánh xe mở ra như một vầng sáng
+                float settle = Time.time - spawnTime < Swarm.DeploySettleTime * 3f ? Swarm.DeploySettleTime : Swarm.FormationSettleTime;
+                SpringTo(slot.position, slotVelocity, settle, dt);
                 Orient(slot.rotation, slotVelocity, dt);
                 if (Swarm.ActiveFormation.ContactDamage)
                     CheckHits(Swarm.RingContactDamage, false, Swarm.ContactHitInterval);

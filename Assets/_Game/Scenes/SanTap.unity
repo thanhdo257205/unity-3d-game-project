@@ -7428,11 +7428,12 @@ MonoBehaviour:
   aimCamera: {fileID: 0}
   hitFeedback: {fileID: 1579720757}
   pouchAnchor: {fileID: 2032969635}
-  activationCost: 20
+  activationCost: 30
   upkeepPerSecond: 2
-  deployInterval: 0.05
+  deployInterval: 0.03
+  deploySettleTime: 0.14
   despawnTime: 0.25
-  swordCount: 9
+  swordCount: 20
   startFormation: 0
   anchor: {fileID: 1629597275}
   anchorHeight: 1.1
@@ -7442,31 +7443,33 @@ MonoBehaviour:
   formationSwordScale: 0.7
   scaleGrowTime: 0.2
   scaleShrinkTime: 0.35
-  fan:
-    arcAngle: 180
-    radius: 0.7
-    layerCapacity: 12
-    layerSpacing: 0.2
-    tiltBack: 12
-    behindDistance: 0.58
+  wheel:
+    behindDistance: 0.63
     heightOffset: 0
+    innerRadius: 0.78
+    outerExtraRadius: 0.21
+    outerExtraBack: 0.08
+    spinSpeed: 12
+    wobbleAmplitude: 0.04
+    wobbleFrequency: 0.7
   ring:
     radius: 1
     spinSpeed: 180
-    layerCapacity: 12
+    layerCapacity: 10
     layerSpacing: 0.3
     heightOffset: -0.3
   arrow:
-    columnCapacity: 12
+    columnCapacity: 10
     verticalSpacing: 0.14
     columnSpacing: 0.25
     behindDistance: 0.45
     sideOffset: -0.6
     heightOffset: -0.2
-  singleShotCost: 4
+  singleShotCost: 6
   volleyCostPerSword: 3
   formationChangeCost: 5
   ringDrainPerSecond: 6
+  outSwordDrainPerSecond: 1
   singleHitIntent: 2
   volleyHitIntent: 1
   shotSpeed: 80
@@ -8582,6 +8585,8 @@ MonoBehaviour:
   itemNameTime: 1.5
   hotbarSlotColor: {r: 0.04, g: 0.05, b: 0.08, a: 0.78}
   hotbarSelectedColor: {r: 0.22, g: 0.18, b: 0.07, a: 0.92}
+  drainWarnThreshold: 8
+  drainPulseRate: 1.6
   manaWarnTime: 1.2
   vignetteTime: 0.4
   vignetteAlpha: 0.35
