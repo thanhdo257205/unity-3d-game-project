@@ -5951,6 +5951,18 @@ MonoBehaviour:
   maxAnimSpeed: 1.5
   speedSmoothTime: 0.06
   groundedGrace: 0.12
+  cameraOrbit: {fileID: 1459372523}
+  shootKeyTime: 0.9
+  raiseTime: 0.08
+  releaseDelay: 0.35
+  retractSpeed: 2.5
+  retractEndClipTime: 2.95
+  retractBlendTime: 0.12
+  kickForearmAngle: 8
+  kickHandAngle: 8
+  kickTime: 0.1
+  maxAimPitch: 25
+  aimBlendSpeed: 10
   stats: {fileID: 2127460595}
   melee: {fileID: 2127460596}
   upperLayerName: UpperBody
@@ -6051,6 +6063,7 @@ MonoBehaviour:
   blendTime: 0.06
   exitBlendTime: 0.15
   idleState: Locomotion
+  groundGrace: 0.15
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

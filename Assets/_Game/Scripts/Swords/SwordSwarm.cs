@@ -192,6 +192,8 @@ public class SwordSwarm : MonoBehaviour
     private float nextFireTime;
     private float aimUntil;
     private float pendingVolleyTime = -1f;
+    private float pendingFireTime;       // giờ phóng kiếm đang chờ tay duỗi tới điểm bắn
+    private int pendingFireKind;         // 0 = không chờ, 1 = bắn lẻ, 2 = loạt Mũi tên
     private int nextShooter;
 
     // ----- Giá trị cho FlyingSword đọc -----
@@ -243,6 +245,18 @@ public class SwordSwarm : MonoBehaviour
 
     /// <summary>Báo mỗi lần phóng kiếm: bắn lẻ hoặc loạt Mũi tên (nhân vật vung tay).</summary>
     public event System.Action StrikeFired;
+
+    /// <summary>Báo mỗi khi MỘT thanh kiếm rời đội hình để phóng đi (bắn lẻ: 1 lần; loạt Mũi tên: mỗi kiếm 1 lần). Nhân vật giật tay theo nhịp này.</summary>
+    public event System.Action SwordLaunched;
+
+    /// <summary>
+    /// Cổng tư thế bắn (PlayerAnimator gán): được gọi ngay khi bấm bắn, đưa tay vào tư thế phóng kiếm
+    /// và trả về số giây còn lại cho tới khi tay tới điểm bắn (0 nếu tay đã ở đó). Kiếm chỉ rời đội hình sau khoảng chờ này.
+    /// </summary>
+    public System.Func<float> ShootPoseGate;
+
+    /// <summary>FlyingSword gọi khi một kiếm trong loạt tới giờ lao đi.</summary>
+    public void NotifySwordLaunched() { SwordLaunched?.Invoke(); }
 
     /// <summary>Điểm neo hiện tại của đội hình trong thế giới.</summary>
     public Vector3 AnchorPosition => anchor != null ? anchor.position : owner.position + Vector3.up * anchorHeight;
@@ -311,7 +325,19 @@ public class SwordSwarm : MonoBehaviour
         if (alive && pendingVolleyTime > 0f && Time.time >= pendingVolleyTime)
         {
             pendingVolleyTime = -1f;
-            if (current == FormationType.Arrow) FireVolley();
+            if (current == FormationType.Arrow) RequestVolley();
+        }
+
+        // Kiếm đang chờ tay duỗi tới điểm bắn: đến giờ thì phóng
+        if (pendingFireKind != 0)
+        {
+            if (!alive) pendingFireKind = 0;
+            else if (Time.time >= pendingFireTime)
+            {
+                int kind = pendingFireKind;
+                pendingFireKind = 0;
+                if (kind == 1) FireSingle(); else FireVolley();
+            }
         }
 
         // Đội hình Vòng tốn pháp lực mỗi giây; cạn thì tự về Quạt
@@ -372,9 +398,49 @@ public class SwordSwarm : MonoBehaviour
         if (cursorLocked && mouse != null && mouse.leftButton.isPressed)
         {
             aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
-            if (Time.time >= nextFireTime && FireSingle())
-                nextFireTime = Time.time + fireInterval;
+            if (Time.time >= nextFireTime && pendingFireKind == 0 && RequestSingle())
+                nextFireTime = (pendingFireKind != 0 ? pendingFireTime : Time.time) + fireInterval;
         }
+    }
+
+    /// <summary>
+    /// Yêu cầu bắn một kiếm: đưa tay vào tư thế bắn trước (qua ShootPoseGate), kiếm rời đội hình khi tay tới nơi.
+    /// Trả về true nếu đã bắn hoặc đã hẹn bắn.
+    /// </summary>
+    private bool RequestSingle()
+    {
+        float delay = 0f;
+        // Chỉ bắt tay giơ lên khi chắc chắn bắn được (còn kiếm rảnh và đủ pháp lực); thiếu thì để FireSingle báo cảnh báo
+        if (ShootPoseGate != null && HasFreeSword() && (stats == null || stats.HasMana(singleShotCost)))
+            delay = ShootPoseGate();
+        if (delay <= 0.001f) return FireSingle();
+
+        pendingFireKind = 1;
+        pendingFireTime = Time.time + delay;
+        aimUntil = Mathf.Max(aimUntil, pendingFireTime + aimHoldTime);   // thân quay theo camera ngay từ lúc bấm
+        return true;
+    }
+
+    /// <summary>Giống RequestSingle nhưng cho loạt Mũi tên.</summary>
+    private void RequestVolley()
+    {
+        float delay = 0f;
+        int ready = ReadySwordCount;
+        if (ShootPoseGate != null && ready > 0 && (stats == null || stats.HasMana(volleyCostPerSword * ready)))
+            delay = ShootPoseGate();
+        if (delay <= 0.001f) { FireVolley(); return; }
+
+        pendingFireKind = 2;
+        pendingFireTime = Time.time + delay;
+        aimUntil = Mathf.Max(aimUntil, pendingFireTime + aimHoldTime);
+    }
+
+    /// <summary>Còn thanh kiếm nào rảnh (đứng trong đội hình, chưa hẹn lao) không.</summary>
+    private bool HasFreeSword()
+    {
+        for (int i = 0; i < swords.Count; i++)
+            if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike) return true;
+        return false;
     }
 
     /// <summary>Phím 3: vào đội hình Mũi tên; nếu đã ở đó (hoặc bật "lao luôn") thì lao cả đàn.</summary>
@@ -387,7 +453,7 @@ public class SwordSwarm : MonoBehaviour
         }
         else
         {
-            FireVolley();
+            RequestVolley();
         }
     }
 
@@ -406,6 +472,7 @@ public class SwordSwarm : MonoBehaviour
     public void SetFormation(FormationType type)
     {
         pendingVolleyTime = -1f;
+        pendingFireKind = 0;
         if (type == current) return;
         current = type;
         for (int i = 0; i < swords.Count; i++)
@@ -427,6 +494,7 @@ public class SwordSwarm : MonoBehaviour
     public void RecallAll()
     {
         pendingVolleyTime = -1f;
+        pendingFireKind = 0;
         for (int i = 0; i < swords.Count; i++)
         {
             FlyingSword s = swords[i];
@@ -456,6 +524,7 @@ public class SwordSwarm : MonoBehaviour
 
         aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
         StrikeFired?.Invoke();
+        SwordLaunched?.Invoke();
         return true;
     }
 

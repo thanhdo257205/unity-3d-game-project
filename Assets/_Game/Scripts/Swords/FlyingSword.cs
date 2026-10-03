@@ -311,6 +311,7 @@ public class FlyingSword : MonoBehaviour
         float len = to.magnitude;
         Vector3 dir = len > 0.01f ? to / len : transform.forward;
         LaunchStrike(scheduledAim + dir * scheduledOvershoot, scheduledSpeed, scheduledDamage, scheduledReturnTime, scheduledIntent);
+        if (Swarm != null) Swarm.NotifySwordLaunched();   // mỗi kiếm trong loạt rời đội hình là một nhịp giật tay
     }
 
     /// <summary>Lò xo giảm chấn: kéo kiếm tới target, theo kịp chuyển động của chỗ đứng. Độc lập với FPS.</summary>
