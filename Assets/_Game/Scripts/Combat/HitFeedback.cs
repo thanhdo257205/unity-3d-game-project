@@ -20,11 +20,11 @@ public class HitFeedback : MonoBehaviour
     [Tooltip("Nguồn phát rung. CinemachineCamera cần có thêm 'Cinemachine Impulse Listener' để nhận rung.")]
     [SerializeField] private CinemachineImpulseSource impulseSource;
 
-    [Tooltip("Độ giật camera khi trúng đòn (mét). 0.04 là rung nhẹ.")]
-    [SerializeField, Min(0f)] private float hitShake = 0.04f;
+    [Tooltip("Độ giật camera khi trúng đòn (mét). 0.02 là rung rất nhẹ.")]
+    [SerializeField, Min(0f)] private float hitShake = 0.02f;
 
     [Tooltip("Độ giật camera khi hạ gục mục tiêu (mét). Mạnh hơn khi trúng thường.")]
-    [SerializeField, Min(0f)] private float killShake = 0.1f;
+    [SerializeField, Min(0f)] private float killShake = 0.05f;
 
     [Header("Dừng hình khi trúng")]
     [Tooltip("Thời gian dừng hình khi đòn trúng mục tiêu (giây, tính theo thời gian thật).")]

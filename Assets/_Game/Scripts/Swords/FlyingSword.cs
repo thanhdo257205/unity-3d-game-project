@@ -108,6 +108,8 @@ public class FlyingSword : MonoBehaviour
     private float baseTrailWidth = 0.07f;
     private float baseTrailTime = 0.22f;
     private float currentStretch = 1f;
+    private float bodyScale = 1f;       // kích thước hiện tại của thân kiếm (1 = kích thước thật)
+    private bool scaleInitialized;
 
     /// <summary>Đàn kiếm sở hữu thanh kiếm này.</summary>
     public SwordSwarm Swarm { get; private set; }
@@ -125,7 +127,10 @@ public class FlyingSword : MonoBehaviour
     public bool HasScheduledStrike => scheduled;
 
     /// <summary>Vị trí mũi kiếm trong thế giới (đã tính phần kéo dài khi đang lao).</summary>
-    public Vector3 Tip => transform.position + transform.forward * (tipOffset * currentStretch);
+    public Vector3 Tip => transform.position + transform.forward * (tipOffset * LengthScale);
+
+    /// <summary>Hệ số độ dài thân kiếm: kích thước hiện tại (nhỏ trong đội hình, to dần khi phóng) nhân với phần kéo dài khi lao.</summary>
+    private float LengthScale => currentStretch * bodyScale;
 
     /// <summary>Gọi một lần khi đàn kiếm sinh ra thanh kiếm này.</summary>
     public void Init(SwordSwarm swarm, int index)
@@ -215,13 +220,13 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Thân kiếm (đoạn từ đuôi chuôi tới mũi) có chạm quả cầu tâm center bán kính radius không? closest là điểm gần nhất trên thân kiếm.</summary>
     public bool OverlapsSphere(Vector3 center, float radius, out Vector3 closest)
     {
-        Vector3 a = transform.position + transform.forward * (tailOffset * currentStretch);
+        Vector3 a = transform.position + transform.forward * (tailOffset * LengthScale);
         Vector3 b = Tip;
         Vector3 ab = b - a;
         float len2 = ab.sqrMagnitude;
         float t = len2 > 0.0001f ? Mathf.Clamp01(Vector3.Dot(center - a, ab) / len2) : 0f;
         closest = a + ab * t;
-        float r = hitRadius + radius;
+        float r = hitRadius * bodyScale + radius;
         return (center - closest).sqrMagnitude <= r * r;
     }
 
@@ -285,10 +290,11 @@ public class FlyingSword : MonoBehaviour
         float target = Mode == SwordMode.Strike ? 1f : 0f;
         speedFeel = Mathf.Lerp(speedFeel, target, 1f - Mathf.Exp(-feelSharpness * dt));
         currentStretch = Mathf.Lerp(1f, strikeStretch, speedFeel);
+        UpdateBodyScale(dt);
 
         if (model != null)
         {
-            model.localScale = new Vector3(1f, 1f, currentStretch);
+            model.localScale = new Vector3(bodyScale, bodyScale, bodyScale * currentStretch);
             // Rung nhẹ khi chặn cầu: lệch ngẫu nhiên, tắt dần
             if (Time.time < shakeEndTime)
             {
@@ -299,9 +305,21 @@ public class FlyingSword : MonoBehaviour
         }
         if (trail != null)
         {
-            trail.widthMultiplier = Mathf.Lerp(baseTrailWidth, strikeTrailWidth, speedFeel);
+            trail.widthMultiplier = Mathf.Lerp(baseTrailWidth * bodyScale, strikeTrailWidth, speedFeel);
             trail.time = Mathf.Lerp(baseTrailTime, strikeTrailTime, speedFeel);
         }
+    }
+
+    /// <summary>Trong đội hình kiếm nhỏ lại (formationSwordScale); lao đi thì to dần về cỡ thật, thu về thì nhỏ dần lại.</summary>
+    private void UpdateBodyScale(float dt)
+    {
+        float small = Swarm != null ? Swarm.FormationSwordScale : 1f;
+        if (!scaleInitialized) { bodyScale = small; scaleInitialized = true; }
+        bool big = Mode == SwordMode.Strike;
+        float target = big ? 1f : small;
+        float time = big ? (Swarm != null ? Swarm.ScaleGrowTime : 0.2f) : (Swarm != null ? Swarm.ScaleShrinkTime : 0.35f);
+        float rate = Mathf.Abs(1f - small) / Mathf.Max(0.01f, time);
+        bodyScale = Mathf.MoveTowards(bodyScale, target, rate * dt);
     }
 
     /// <summary>Đến giờ hẹn: tính điểm kết thúc xuyên qua mục tiêu rồi lao đi.</summary>
@@ -392,9 +410,9 @@ public class FlyingSword : MonoBehaviour
     private void CheckHits(float damage, bool oncePerFlight, float interval)
     {
         if (damage <= 0f) return;
-        Vector3 a = transform.position + transform.forward * (tailOffset * currentStretch);
+        Vector3 a = transform.position + transform.forward * (tailOffset * LengthScale);
         Vector3 b = Tip;
-        int n = Physics.OverlapCapsuleNonAlloc(a, b, hitRadius, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
+        int n = Physics.OverlapCapsuleNonAlloc(a, b, hitRadius * bodyScale, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < n; i++)
         {
             Damageable d;

@@ -39,6 +39,8 @@ public class EnemyOrb : MonoBehaviour
     public Vector3 Position => transform.position;
     /// <summary>Bán kính va chạm.</summary>
     public float Radius => radius;
+    /// <summary>Hướng bay hiện tại (vector đơn vị).</summary>
+    public Vector3 Direction => velocity.sqrMagnitude > 0.0001f ? velocity.normalized : Vector3.forward;
     /// <summary>Đã trúng/bị chặn/tan rồi.</summary>
     public bool IsDone => done;
     /// <summary>Đã có một thanh kiếm được cử ra đón quả cầu này chưa (SwordSwarm dùng).</summary>

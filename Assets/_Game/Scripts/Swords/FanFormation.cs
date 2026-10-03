@@ -11,23 +11,23 @@ public class FanFormation : IFormation
     [Tooltip("Góc mở của quạt (độ). 180 là đúng nửa vòng tròn. Thiết kế gốc là 160, đã nới rộng hơn.")]
     [Range(10f, 360f)] public float arcAngle = 180f;
 
-    [Tooltip("Bán kính quạt: khoảng cách từ tâm quạt tới chuôi kiếm (mét). Thiết kế gốc là 1.5, đã tăng lên cho quạt xòe rộng hơn.")]
-    [Min(0.2f)] public float radius = 1.8f;
+    [Tooltip("Bán kính quạt: khoảng cách từ tâm quạt tới chuôi kiếm (mét). Kiếm đã thu còn 0.7 lần nên 0.7m cho mũi kiếm xa nhất cách tâm khoảng 1.3m.")]
+    [Min(0.2f)] public float radius = 0.7f;
 
     [Tooltip("Số kiếm tối đa trong một lớp. Nhiều hơn thì xếp thêm lớp ngoài.")]
     [Min(1)] public int layerCapacity = 12;
 
     [Tooltip("Khoảng cách giữa các lớp (mét).")]
-    [Min(0f)] public float layerSpacing = 0.5f;
+    [Min(0f)] public float layerSpacing = 0.2f;
 
     [Tooltip("Độ ngả của quạt ra sau lưng (độ). 0 là quạt đứng thẳng, số dương là ngả ra sau như đôi cánh.")]
-    [Range(-30f, 60f)] public float tiltBack = 20f;
+    [Range(-30f, 60f)] public float tiltBack = 12f;
 
-    [Tooltip("Tâm quạt cách lưng nhân vật bao xa về phía sau (mét). Số lớn = quạt lùi ra xa lưng hơn.")]
-    public float behindDistance = 0.85f;
+    [Tooltip("Tâm quạt cách điểm neo (giữa thân) bao xa về phía sau (mét). 0.58 tức là cách mặt lưng khoảng 0.35m.")]
+    public float behindDistance = 0.58f;
 
-    [Tooltip("Độ cao tâm quạt so với điểm neo ngang ngực (mét). Số âm là thấp xuống.")]
-    public float heightOffset = -0.15f;
+    [Tooltip("Độ cao tâm quạt so với điểm neo (điểm neo ngang vai nên 0 là tâm quạt ngang vai). Số âm là thấp xuống.")]
+    public float heightOffset = 0f;
 
     public string DisplayName => "Quạt";
 

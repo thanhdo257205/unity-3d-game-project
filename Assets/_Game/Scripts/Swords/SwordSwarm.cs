@@ -66,6 +66,16 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Tốc độ tối đa của kiếm khi bay về đội hình (mét/giây). Chặn để kiếm không bay quá nhanh khi nhân vật chạy xa.")]
     [SerializeField, Min(1f)] private float maxSwordSpeed = 70f;
 
+    [Header("Kích thước kiếm")]
+    [Tooltip("Kích thước kiếm khi đứng trong đội hình, so với cỡ thật (1 = cỡ thật). 0.7 để đàn kiếm gọn, không che màn hình.")]
+    [SerializeField, Range(0.3f, 1f)] private float formationSwordScale = 0.7f;
+
+    [Tooltip("Thời gian kiếm to dần từ cỡ nhỏ lên cỡ thật khi phóng đi (giây).")]
+    [SerializeField, Min(0.01f)] private float scaleGrowTime = 0.2f;
+
+    [Tooltip("Thời gian kiếm nhỏ dần lại sau khi phóng xong và bay về (giây).")]
+    [SerializeField, Min(0.01f)] private float scaleShrinkTime = 0.35f;
+
     [SerializeField] private FanFormation fan = new FanFormation();
     [SerializeField] private RingFormation ring = new RingFormation();
     [SerializeField] private ArrowFormation arrow = new ArrowFormation();
@@ -203,6 +213,9 @@ public class SwordSwarm : MonoBehaviour
     public float ReturnVelocityKeep => returnVelocityKeep;
     public float RingContactDamage => ringContactDamage;
     public float ContactHitInterval => contactHitInterval;
+    public float FormationSwordScale => formationSwordScale;
+    public float ScaleGrowTime => scaleGrowTime;
+    public float ScaleShrinkTime => scaleShrinkTime;
     public float SingleHitIntent => singleHitIntent;
     public float VolleyHitIntent => volleyHitIntent;
 
@@ -634,7 +647,7 @@ public class SwordSwarm : MonoBehaviour
         orb.Block();
         sword.ClearGuard();
         sword.Shake(blockShake, blockShakeTime);
-        EmitBlockSparks(point, (orb.Position - sword.transform.position).normalized);
+        EmitBlockSparks(point, -orb.Direction);   // tia lửa bắn ngược về phía cầu bay tới
     }
 
     /// <summary>Phát tia lửa tại điểm chặn.</summary>

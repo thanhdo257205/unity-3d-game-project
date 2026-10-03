@@ -9,7 +9,7 @@ using UnityEngine;
 public class RingFormation : IFormation
 {
     [Tooltip("Bán kính vòng: khoảng cách từ nhân vật tới chuôi kiếm (mét).")]
-    [Min(0.3f)] public float radius = 2.5f;
+    [Min(0.3f)] public float radius = 1.0f;
 
     [Tooltip("Tốc độ quay của vòng (độ/giây).")]
     public float spinSpeed = 180f;
@@ -18,10 +18,10 @@ public class RingFormation : IFormation
     [Min(1)] public int layerCapacity = 12;
 
     [Tooltip("Khoảng cách giữa các vòng (mét).")]
-    [Min(0f)] public float layerSpacing = 0.6f;
+    [Min(0f)] public float layerSpacing = 0.3f;
 
     [Tooltip("Độ cao vòng so với điểm neo ngang ngực (mét). Số âm là thấp xuống, ví dụ -0.2 là ngang bụng.")]
-    public float heightOffset = -0.2f;
+    public float heightOffset = -0.3f;
 
     public string DisplayName => "Vòng";
 

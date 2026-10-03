@@ -51,11 +51,23 @@ public class HUD : MonoBehaviour
     [Tooltip("Thời gian thanh Pháp lực nháy đỏ và dòng 'Pháp lực không đủ' hiện (giây).")]
     [SerializeField, Min(0.1f)] private float manaWarnTime = 1.2f;
 
-    [Tooltip("Thời gian viền đỏ màn hình khi bị đánh (giây).")]
-    [SerializeField, Min(0.05f)] private float vignetteTime = 0.45f;
+    [Tooltip("Thời gian viền đỏ ở bốn mép màn hình khi bị đánh mờ hết (giây).")]
+    [SerializeField, Min(0.05f)] private float vignetteTime = 0.4f;
 
-    [Tooltip("Độ đậm tối đa của viền đỏ (0-1).")]
-    [SerializeField, Range(0f, 1f)] private float vignetteAlpha = 0.65f;
+    [Tooltip("Độ đậm tối đa của viền đỏ lúc vừa bị đánh (0-1). 0.35 = 35%.")]
+    [SerializeField, Range(0f, 1f)] private float vignetteAlpha = 0.35f;
+
+    [Tooltip("Bề rộng dải viền đỏ tính từ mép màn hình (tỉ lệ so với nửa màn hình, 0-1). Nhỏ = viền mỏng, tâm màn hình trong hơn.")]
+    [SerializeField, Range(0.05f, 0.6f)] private float vignetteWidth = 0.22f;
+
+    [Tooltip("Máu dưới tỉ lệ này (0-1) thì giữ một viền đỏ nhạt đập theo nhịp. 0.3 = dưới 30% máu.")]
+    [SerializeField, Range(0f, 1f)] private float lowHealthThreshold = 0.3f;
+
+    [Tooltip("Độ đậm cao nhất của viền đỏ nhạt khi sắp chết (0-1).")]
+    [SerializeField, Range(0f, 1f)] private float lowHealthAlpha = 0.14f;
+
+    [Tooltip("Nhịp đập của viền đỏ khi sắp chết (số nhịp mỗi giây).")]
+    [SerializeField, Min(0.1f)] private float lowHealthPulseRate = 1.1f;
 
     [Tooltip("Số sát thương bay lên cao bao nhiêu điểm ảnh.")]
     [SerializeField, Min(0f)] private float damageRise = 90f;
@@ -155,20 +167,21 @@ public class HUD : MonoBehaviour
         BuildDeathPanel();
     }
 
-    /// <summary>Viền đỏ toàn màn hình: ảnh vẽ bằng code, giữa trong suốt, mép đỏ.</summary>
+    /// <summary>Viền đỏ ở bốn mép màn hình: ảnh vẽ bằng code, chỉ đỏ ở dải sát mép, tâm hoàn toàn trong suốt.</summary>
     private void BuildVignette()
     {
-        const int size = 128;
+        const int size = 256;
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.wrapMode = TextureWrapMode.Clamp;
+        float band = Mathf.Max(0.02f, vignetteWidth * 0.5f);   // đổi sang tỉ lệ so với cả chiều rộng/cao ảnh
         for (int y = 0; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                float nx = (x + 0.5f) / size * 2f - 1f;
-                float ny = (y + 0.5f) / size * 2f - 1f;
-                float d = Mathf.Max(Mathf.Abs(nx), Mathf.Abs(ny)) * 0.55f + Mathf.Sqrt(nx * nx + ny * ny) * 0.45f;
-                float a = Mathf.Clamp01((d - 0.55f) / 0.7f);
+                float u = (x + 0.5f) / size;
+                float v = (y + 0.5f) / size;
+                float edge = Mathf.Min(Mathf.Min(u, 1f - u), Mathf.Min(v, 1f - v));   // khoảng cách tới mép gần nhất (0-0.5)
+                float a = Mathf.Clamp01(1f - edge / band);
                 a *= a;
                 tex.SetPixel(x, y, new Color(0.85f, 0.02f, 0.02f, a));
             }
@@ -362,6 +375,12 @@ public class HUD : MonoBehaviour
         // Viền đỏ khi bị đánh
         float vt = (Time.unscaledTime - vignetteStart) / vignetteTime;
         float va = vt >= 0f && vt < 1f ? (1f - vt) * vignetteAlpha : 0f;
+        // Sắp chết (máu thấp): viền đỏ nhạt đập theo nhịp tim
+        if (stats.IsAlive && stats.MaxHealth > 0f && stats.Health / stats.MaxHealth < lowHealthThreshold)
+        {
+            float beat = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * lowHealthPulseRate * Mathf.PI * 2f);
+            va = Mathf.Max(va, lowHealthAlpha * (0.35f + 0.65f * beat));
+        }
         vignetteRaw.color = new Color(1f, 1f, 1f, va);
 
         // Thiếu pháp lực: thanh nháy đỏ + dòng chữ nhỏ
