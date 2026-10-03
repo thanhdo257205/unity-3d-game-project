@@ -26,6 +26,9 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Tốc độ xoay thân người về hướng đang đi, tính bằng độ/giây. Số lớn = quay nhanh.")]
     [SerializeField, Min(0f)] private float turnSpeed = 720f;
 
+    [Tooltip("Tốc độ xoay thân người về hướng camera khi đang bắn kiếm, tính bằng độ/giây. Số lớn để kiếm bay đúng hướng nhìn gần như ngay.")]
+    [SerializeField, Min(0f)] private float aimTurnSpeed = 1080f;
+
     [Header("Nhảy và rơi")]
     [Tooltip("Độ cao một cú nhảy, tính bằng mét.")]
     [SerializeField, Min(0f)] private float jumpHeight = 1.5f;
@@ -56,6 +59,12 @@ public class PlayerController : MonoBehaviour
 
     /// <summary>Nhân vật đang giữ Shift để chạy không.</summary>
     public bool IsRunning { get; private set; }
+
+    /// <summary>
+    /// Bật khi đang bắn kiếm: thân người luôn quay mặt theo hướng camera (vẫn đi sang ngang/lùi được).
+    /// Do SwordSwarm điều khiển.
+    /// </summary>
+    public bool FaceCamera { get; set; }
 
     /// <summary>Tốc độ di chuyển ngang hiện tại (mét/giây). Dùng cho animation sau này.</summary>
     public float HorizontalSpeed => new Vector2(horizontalVelocity.x, horizontalVelocity.z).magnitude;
@@ -107,7 +116,13 @@ public class PlayerController : MonoBehaviour
         float accel = IsGrounded ? acceleration : acceleration * airControl;
         horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, targetVelocity, accel * Time.deltaTime);
 
-        if (moveDir.sqrMagnitude > 0.0001f)
+        if (FaceCamera && cameraOrbit != null)
+        {
+            // Đang bắn: quay mặt theo hướng camera nhìn
+            Quaternion aimRotation = Quaternion.Euler(0f, cameraOrbit.Yaw, 0f);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, aimRotation, aimTurnSpeed * Time.deltaTime);
+        }
+        else if (moveDir.sqrMagnitude > 0.0001f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(moveDir, Vector3.up);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
