@@ -47,3 +47,7 @@ desktop.ini
 # Blender
 *.blend1
 *.blend2
+
+# Ảnh chụp thử do công cụ MCP tạo
+/[Aa]ssets/Screenshots/
+/[Aa]ssets/Screenshots.meta
