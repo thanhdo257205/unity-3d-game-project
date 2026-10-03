@@ -66,8 +66,14 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public bool FaceCamera { get; set; }
 
-    /// <summary>Tốc độ di chuyển ngang hiện tại (mét/giây). Dùng cho animation sau này.</summary>
+    /// <summary>Tốc độ di chuyển ngang hiện tại (mét/giây). Animator dùng để chọn Đứng/Đi/Chạy.</summary>
     public float HorizontalSpeed => new Vector2(horizontalVelocity.x, horizontalVelocity.z).magnitude;
+
+    /// <summary>Vận tốc thẳng đứng (mét/giây): dương là đang bay lên, âm là đang rơi.</summary>
+    public float VerticalVelocity => verticalVelocity;
+
+    /// <summary>Báo đúng khoảnh khắc nhân vật bật nhảy (Animator dùng để phát anim Nhảy).</summary>
+    public event System.Action Jumped;
 
     private void Awake()
     {
@@ -149,6 +155,7 @@ public class PlayerController : MonoBehaviour
             lastGroundedTime = -100f;
             lastJumpPressedTime = -100f;
             IsGrounded = false;
+            Jumped?.Invoke();
         }
 
         verticalVelocity -= gravity * Time.deltaTime;

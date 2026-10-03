@@ -47,7 +47,10 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Đội hình lúc bắt đầu.")]
     [SerializeField] private FormationType startFormation = FormationType.Fan;
 
-    [Tooltip("Độ cao điểm neo của đội hình so với chân nhân vật (mét). 1.1 là khoảng ngực.")]
+    [Tooltip("Điểm neo bám theo cơ thể nhân vật (thường là một đối tượng con của xương ngực). Có thì đội hình đi theo ngực/lưng nhân vật khi chạy, nhún. Để trống thì dùng 'Độ cao điểm neo' bên dưới.")]
+    [SerializeField] private Transform anchor;
+
+    [Tooltip("Độ cao điểm neo của đội hình so với chân nhân vật (mét), chỉ dùng khi không có 'Điểm neo' ở trên. 1.1 là khoảng ngực.")]
     [SerializeField] private float anchorHeight = 1.1f;
 
     [Tooltip("Thời gian kiếm bay tới chỗ mới khi đổi đội hình (giây). 0.4 cho cảm giác nhanh nhưng vẫn nhìn thấy kiếm bay.")]
@@ -163,6 +166,15 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Danh sách kiếm (chỉ đọc).</summary>
     public IReadOnlyList<FlyingSword> Swords => swords;
 
+    /// <summary>Báo khi đội hình đổi (nhân vật niệm quyết).</summary>
+    public event System.Action<FormationType> FormationChanged;
+
+    /// <summary>Báo mỗi lần phóng kiếm: bắn lẻ hoặc loạt Mũi tên (nhân vật vung tay).</summary>
+    public event System.Action StrikeFired;
+
+    /// <summary>Điểm neo hiện tại của đội hình trong thế giới.</summary>
+    private Vector3 AnchorPosition => anchor != null ? anchor.position : owner.position + Vector3.up * anchorHeight;
+
     /// <summary>Điểm đang ngắm trong thế giới (nơi tia từ giữa màn hình chạm vào).</summary>
     public Vector3 AimPoint { get; private set; }
 
@@ -205,7 +217,7 @@ public class SwordSwarm : MonoBehaviour
         if (swords.Count == 0 || owner == null) return;
 
         FormationContext ctx;
-        ctx.origin = owner.position + Vector3.up * anchorHeight;
+        ctx.origin = AnchorPosition;
         ctx.body = Quaternion.Euler(0f, owner.eulerAngles.y, 0f);
         ctx.time = Time.time;
 
@@ -266,6 +278,7 @@ public class SwordSwarm : MonoBehaviour
         if (type == current) return;
         current = type;
         for (int i = 0; i < swords.Count; i++) swords[i].OnFormationChanged();
+        FormationChanged?.Invoke(type);
     }
 
     /// <summary>FlyingSword gọi khi một nhát chém (bắn lẻ hoặc loạt Mũi tên) trúng mục tiêu: dừng hình và rung camera.</summary>
@@ -298,6 +311,7 @@ public class SwordSwarm : MonoBehaviour
         s.LaunchStrike(end + dir * shotOvershoot, shotSpeed, strikeDamage, shotReturnTime);
 
         aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
+        StrikeFired?.Invoke();
         return true;
     }
 
@@ -319,6 +333,7 @@ public class SwordSwarm : MonoBehaviour
             temp[k].ScheduleStrike(Time.time + k * volleyInterval, aim, volleyOvershoot, volleySpeed, volleyDamage, volleyReturnTime);
 
         aimUntil = Mathf.Max(aimUntil, Time.time + temp.Count * volleyInterval + aimHoldTime);
+        StrikeFired?.Invoke();
         return true;
     }
 
@@ -420,7 +435,7 @@ public class SwordSwarm : MonoBehaviour
 
         while (swords.Count < swordCount)
         {
-            Vector3 spawn = owner.position + Vector3.up * anchorHeight;
+            Vector3 spawn = AnchorPosition;
             GameObject go = Instantiate(swordPrefab, spawn, Quaternion.identity, transform);
             go.name = "Kiem_" + swords.Count;
             FlyingSword s = go.GetComponent<FlyingSword>();
