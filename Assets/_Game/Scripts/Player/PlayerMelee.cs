@@ -1,13 +1,16 @@
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 
 /// <summary>
-/// Quyền cước 3 đòn: Dam1 → Dam2 → Da (chuột phải hoặc F). Không tốn pháp lực.
-/// Bấm tiếp khi đòn trước gần xong thì nối đòn sau; không bấm thì về đứng yên.
+/// Đánh cận chiến bằng chuột trái, hai kiểu tùy ô đang chọn trên thanh ô đồ:
+/// - Tay không (ô trống): quyền cước Dam1 → Dam2 → Da.
+/// - Cầm kiếm (ô có Thanh Trúc Kiếm, kiếm đã tới tay): chém Chem1 → Chem2 → Chem3.
+/// Bấm tiếp ở nửa sau mỗi đòn thì nối đòn sau; không bấm thì về đứng yên.
 /// Khi đánh: nhân vật quay mặt theo camera, bước nhẹ tới trước, không đi bằng WASD (nhưng nhảy thì hủy được đòn).
 /// Đòn trúng thì gây sát thương cho mọi mục tiêu trong hình quạt phía trước; đòn cuối còn đẩy lùi mục tiêu.
-/// Mọi con số chỉnh trong Inspector.
+/// Mọi con số chỉnh trong Inspector. Không tốn pháp lực.
 /// </summary>
 public class PlayerMelee : MonoBehaviour
 {
@@ -15,7 +18,7 @@ public class PlayerMelee : MonoBehaviour
     [Serializable]
     public class Step
     {
-        [Tooltip("Tên trạng thái trong Animator (Dam1, Dam2, Da).")]
+        [Tooltip("Tên trạng thái trong Animator (Dam1, Dam2, Da, Chem1, Chem2, Chem3).")]
         public string stateName = "Dam1";
 
         [Tooltip("Sát thương của đòn này.")]
@@ -24,13 +27,13 @@ public class PlayerMelee : MonoBehaviour
         [Tooltip("Giây trong clip mà đòn bắt đầu phát (bỏ đoạn dạo đầu của clip cho ra đòn nhanh).")]
         [Min(0f)] public float clipStart = 0.1f;
 
-        [Tooltip("Giây trong clip tại khoảnh khắc đòn trúng (nắm đấm/chân chạm tới).")]
+        [Tooltip("Giây trong clip tại khoảnh khắc đòn trúng (nắm đấm/chân/lưỡi kiếm quét qua phía trước).")]
         [Min(0f)] public float clipHit = 0.3f;
 
-        [Tooltip("Giây trong clip mà đòn kết thúc (hết đà đánh).")]
+        [Tooltip("Giây trong clip mà đòn kết thúc (hết đà đánh, bấm tiếp là nối được đòn sau).")]
         [Min(0.05f)] public float clipEnd = 0.7f;
 
-        [Tooltip("Tốc độ phát anim (1 = bình thường, 1.5 = nhanh gấp rưỡi).")]
+        [Tooltip("Tốc độ phát anim (1 = bình thường, 1.5 = nhanh gấp rưỡi). Thời gian thật của đòn = (kết thúc - bắt đầu) / tốc độ.")]
         [Min(0.1f)] public float speed = 1.4f;
 
         [Tooltip("Quãng bước tới trước khi ra đòn (mét).")]
@@ -38,6 +41,21 @@ public class PlayerMelee : MonoBehaviour
 
         [Tooltip("Đẩy lùi mục tiêu trúng đòn (mét). 0 = không đẩy.")]
         [Min(0f)] public float knockback = 0f;
+
+        [Tooltip("Chỉ dùng khi cầm kiếm: giây trong clip mà vệt chém bắt đầu hiện (lúc lưỡi kiếm bắt đầu vung nhanh).")]
+        [Min(0f)] public float trailStart = 0f;
+
+        [Tooltip("Chỉ dùng khi cầm kiếm: giây trong clip mà vệt chém ngừng vẽ thêm (lưỡi kiếm hết vung).")]
+        [Min(0f)] public float trailEnd = 0f;
+
+        [Tooltip("Chỉ dùng khi cầm kiếm: bật thì nhát này cầm kiếm theo tư thế riêng bên dưới thay vì tư thế 'Cầm chém' chung (dùng cho nhát đâm, nơi hai tay xa nhau).")]
+        public bool useGripOverride = false;
+
+        [Tooltip("Vị trí tâm chuôi kiếm so với xương bàn tay phải (mét) cho nhát này.")]
+        public Vector3 gripPosition = new Vector3(0f, 0.08f, 0.03f);
+
+        [Tooltip("Góc xoay của kiếm so với xương bàn tay phải (độ) cho nhát này.")]
+        public Vector3 gripEuler = Vector3.zero;
     }
 
     [Header("Tham chiếu")]
@@ -53,9 +71,16 @@ public class PlayerMelee : MonoBehaviour
     [Tooltip("Hiệu ứng rung camera và dừng hình khi trúng đòn (đối tượng BayKiem). Có thể để trống.")]
     [SerializeField] private HitFeedback hitFeedback;
 
-    [Header("Chuỗi đòn")]
+    [Tooltip("Thanh ô đồ: ô đang chọn quyết định đánh tay không hay chém kiếm. Để trống thì tự tìm.")]
+    [SerializeField] private Hotbar hotbar;
+
+    [Tooltip("Vũ khí cầm tay: biết kiếm đã tới tay chưa, và bật/tắt vệt chém. Để trống thì tự tìm.")]
+    [SerializeField] private HeldWeapon weapon;
+
+    [Header("Tay không (ô trống)")]
     [Tooltip("Ba đòn theo thứ tự: Dam1 (10 sát thương), Dam2 (12), Da (20, đẩy lùi 1.5m).")]
-    [SerializeField] private Step[] steps =
+    [FormerlySerializedAs("steps")]
+    [SerializeField] private Step[] unarmedSteps =
     {
         // Số giây clipStart/clipHit/clipEnd đo từ chuyển động tay chân thật của từng clip Mixamo
         new Step { stateName = "Dam1", damage = 10f, clipStart = 0.30f, clipHit = 0.45f, clipEnd = 0.72f, speed = 1.2f, lungeDistance = 0.3f },
@@ -63,12 +88,27 @@ public class PlayerMelee : MonoBehaviour
         new Step { stateName = "Da",   damage = 20f, clipStart = 0.20f, clipHit = 0.60f, clipEnd = 1.05f, speed = 1.2f, lungeDistance = 0.4f, knockback = 1.5f },
     };
 
-    [Header("Vùng đánh")]
-    [Tooltip("Tầm với của đòn đánh phía trước mặt (mét).")]
+    [Tooltip("Tầm với của đòn đánh tay không phía trước mặt (mét).")]
     [SerializeField, Min(0.1f)] private float range = 1.6f;
 
-    [Tooltip("Góc hình quạt trước mặt (độ). 90 = lệch trái/phải mỗi bên 45 độ.")]
+    [Tooltip("Góc hình quạt trước mặt khi đánh tay không (độ). 90 = lệch trái/phải mỗi bên 45 độ.")]
     [SerializeField, Range(10f, 360f)] private float arc = 90f;
+
+    [Header("Cầm kiếm")]
+    [Tooltip("Ba nhát chém: Chem1 (18 sát thương), Chem2 (20), Chem3 (32, đẩy lùi 2m). Thời gian thật mỗi nhát khoảng 0.5 / 0.6 / 0.9 giây.")]
+    [SerializeField] private Step[] swordSteps =
+    {
+        // Đo từ chuyển động tay phải thật của 3 clip Great Sword Slash / Thrust Slash (Mixamo)
+        new Step { stateName = "Chem1", damage = 18f, clipStart = 0.30f, clipHit = 0.62f, clipEnd = 0.92f, speed = 1.25f, lungeDistance = 0.3f, trailStart = 0.48f, trailEnd = 0.82f },
+        new Step { stateName = "Chem2", damage = 20f, clipStart = 0.30f, clipHit = 0.73f, clipEnd = 1.00f, speed = 1.15f, lungeDistance = 0.3f, trailStart = 0.55f, trailEnd = 0.90f },
+        new Step { stateName = "Chem3", damage = 32f, clipStart = 0.20f, clipHit = 0.76f, clipEnd = 1.15f, speed = 1.05f, lungeDistance = 0.55f, knockback = 2f, trailStart = 0.60f, trailEnd = 0.95f, useGripOverride = true, gripPosition = new Vector3(0f, 0.08f, 0.03f), gripEuler = new Vector3(0f, 0f, 0f) },
+    };
+
+    [Tooltip("Tầm chém của kiếm phía trước mặt (mét).")]
+    [SerializeField, Min(0.1f)] private float swordRange = 2.2f;
+
+    [Tooltip("Góc hình quạt trước mặt khi chém kiếm (độ). 120 = lệch trái/phải mỗi bên 60 độ.")]
+    [SerializeField, Range(10f, 360f)] private float swordArc = 120f;
 
     [Header("Nối đòn")]
     [Tooltip("Từ lúc nào (tỉ lệ 0-1 của đòn hiện tại) thì bấm tiếp mới được tính là nối đòn. 0.5 = nửa sau của đòn.")]
@@ -89,6 +129,10 @@ public class PlayerMelee : MonoBehaviour
     private static readonly int AtkSpeedId = Animator.StringToHash("AtkSpeed");
     private float lastGroundedTime;
 
+    private Step[] activeSteps;        // chuỗi đòn đang dùng (tay không hoặc kiếm)
+    private bool usingSword;
+    private bool trailOn;
+    private bool queuedPress;          // lệnh đánh gửi từ code (kiểm thử)
     private int stepIndex = -1;        // -1 = không đánh
     private float stepElapsed;         // thời gian thật đã trôi qua trong đòn hiện tại
     private float stepDuration;        // thời gian thật của đòn hiện tại
@@ -97,29 +141,42 @@ public class PlayerMelee : MonoBehaviour
     private bool chainQueued;
     private float cooldownUntil;
 
-    /// <summary>Đang trong chuỗi quyền cước không.</summary>
+    /// <summary>Đang trong chuỗi đòn (quyền cước hoặc chém kiếm) không.</summary>
     public bool IsAttacking => stepIndex >= 0;
+
+    /// <summary>Đòn đang ra là chém kiếm (false = tay không).</summary>
+    public bool IsSwordAttack => IsAttacking && usingSword;
+
+    /// <summary>Chỉ số đòn đang ra (0-2), -1 nếu không đánh.</summary>
+    public int StepIndex => stepIndex;
 
     /// <summary>Báo mỗi lần bắt đầu một đòn (tham số: chỉ số đòn 0-2).</summary>
     public event Action<int> StepStarted;
+
+    /// <summary>Báo đúng khoảnh khắc đòn trúng (lúc gây sát thương). Dùng cho kiểm thử và hiệu ứng.</summary>
+    public event Action<int> HitMoment;
 
     private void Awake()
     {
         if (player == null) player = GetComponent<PlayerController>();
         if (stats == null) stats = GetComponent<PlayerStats>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
+        if (hotbar == null) hotbar = GetComponent<Hotbar>();
+        if (weapon == null) weapon = GetComponent<HeldWeapon>();
     }
 
     private void OnEnable()
     {
         if (player != null) player.Jumped += OnJumped;
         if (stats != null) stats.Died += OnDied;
+        if (hotbar != null) hotbar.SelectionChanged += OnSelectionChanged;
     }
 
     private void OnDisable()
     {
         if (player != null) player.Jumped -= OnJumped;
         if (stats != null) stats.Died -= OnDied;
+        if (hotbar != null) hotbar.SelectionChanged -= OnSelectionChanged;
         EndAttack(false);
     }
 
@@ -127,18 +184,27 @@ public class PlayerMelee : MonoBehaviour
 
     private void OnDied() { if (IsAttacking) EndAttack(false); }
 
+    // Đổi ô giữa chừng thì hủy đòn đang ra
+    private void OnSelectionChanged(int index) { if (IsAttacking) EndAttack(false); }
+
+    /// <summary>Ra lệnh đánh như vừa bấm chuột trái (dùng để kiểm thử qua code).</summary>
+    public void PressAttack() { queuedPress = true; }
+
     private void Update()
     {
+        bool pressed = PressedThisFrame() || queuedPress;
+        queuedPress = false;
+
         if (stats != null && !stats.IsAlive) return;
         if (player != null && player.ControlLocked) return;
 
-        bool pressed = PressedThisFrame();
         if (player.IsGrounded) lastGroundedTime = Time.time;
         bool onGround = Time.time - lastGroundedTime <= groundGrace;   // chịu được vài khung hình "hụt đất" khi đi xuống bậc
 
         if (!IsAttacking)
         {
-            if (pressed && Time.time >= cooldownUntil && onGround) BeginStep(0, false);
+            bool sword;
+            if (pressed && Time.time >= cooldownUntil && onGround && CanAttack(out sword)) BeginStep(0, false, sword);
             return;
         }
 
@@ -146,35 +212,55 @@ public class PlayerMelee : MonoBehaviour
         if (!onGround) { EndAttack(false); return; }
 
         stepElapsed += Time.deltaTime;
+        Step current = activeSteps[stepIndex];
+
+        if (usingSword) UpdateSlashTrail(current);
 
         if (!hitDone && stepElapsed >= hitDelay)
         {
             hitDone = true;
-            DoHit(steps[stepIndex]);
+            DoHit(current);
         }
 
         // Chỉ nhận lệnh nối đòn ở nửa sau của đòn
-        if (pressed && stepIndex < steps.Length - 1 && stepElapsed >= stepDuration * chainWindowStart)
+        if (pressed && stepIndex < activeSteps.Length - 1 && stepElapsed >= stepDuration * chainWindowStart)
             chainQueued = true;
 
         if (stepElapsed >= stepDuration)
         {
-            if (chainQueued && stepIndex < steps.Length - 1) BeginStep(stepIndex + 1, true);
+            if (chainQueued && stepIndex < activeSteps.Length - 1) BeginStep(stepIndex + 1, true, usingSword);
             else EndAttack(true);
         }
+    }
+
+    /// <summary>
+    /// Có được bắt đầu một chuỗi đòn không, và là kiểu nào. Ô trống: tay không. Ô vũ khí: chỉ khi kiếm đã tới tay.
+    /// Ô đan dược/pháp bảo/phù: không đánh (chuột trái dùng vật phẩm).
+    /// </summary>
+    private bool CanAttack(out bool sword)
+    {
+        sword = false;
+        ItemData item = hotbar != null ? hotbar.SelectedItem : null;
+        if (item == null) return true;
+        if (item.type != ItemType.VuKhi) return false;
+        if (weapon == null || !weapon.IsReady) return false;
+        sword = true;
+        return true;
     }
 
     private static bool PressedThisFrame()
     {
         Mouse mouse = Mouse.current;
-        Keyboard kb = Keyboard.current;
-        return (mouse != null && mouse.rightButton.wasPressedThisFrame) || (kb != null && kb.fKey.wasPressedThisFrame);
+        // Chỉ nhận khi con trỏ đã khóa vào cửa sổ Game (bấm chuột trái để khóa lại thì chưa tính là đánh)
+        return mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked;
     }
 
     /// <summary>Bắt đầu đòn thứ index: bật cờ khóa đi, quay mặt theo camera, bước tới và phát anim.</summary>
-    private void BeginStep(int index, bool chained)
+    private void BeginStep(int index, bool chained, bool sword)
     {
-        Step s = steps[index];
+        usingSword = sword;
+        activeSteps = sword ? swordSteps : unarmedSteps;
+        Step s = activeSteps[index];
         stepIndex = index;
         stepElapsed = 0f;
         float speed = Mathf.Max(0.1f, s.speed);
@@ -185,6 +271,9 @@ public class PlayerMelee : MonoBehaviour
 
         player.MoveLocked = true;
         player.FaceCameraForAttack = true;
+        if (weapon != null)
+            weapon.SetSlashPose(sword, sword && s.useGripOverride, new HeldWeapon.GripPose { position = s.gripPosition, euler = s.gripEuler });
+        SetTrail(false);
 
         if (animator != null)
         {
@@ -198,6 +287,20 @@ public class PlayerMelee : MonoBehaviour
         StepStarted?.Invoke(index);
     }
 
+    /// <summary>Vệt chém chỉ hiện trong khoảng giây [trailStart, trailEnd] của clip.</summary>
+    private void UpdateSlashTrail(Step s)
+    {
+        float clipTime = s.clipStart + stepElapsed * Mathf.Max(0.1f, s.speed);
+        SetTrail(clipTime >= s.trailStart && clipTime <= s.trailEnd);
+    }
+
+    private void SetTrail(bool on)
+    {
+        if (trailOn == on) return;
+        trailOn = on;
+        if (weapon != null) weapon.SetSlashTrail(on);
+    }
+
     /// <summary>Kết thúc chuỗi đòn. smoothExit = chuyển mượt về đứng yên.</summary>
     private void EndAttack(bool smoothExit)
     {
@@ -205,6 +308,8 @@ public class PlayerMelee : MonoBehaviour
         stepIndex = -1;
         chainQueued = false;
         cooldownUntil = Time.time + 0.1f;
+        SetTrail(false);
+        if (weapon != null) weapon.SetSlashPose(false);
         if (player != null)
         {
             player.MoveLocked = false;
@@ -226,9 +331,11 @@ public class PlayerMelee : MonoBehaviour
     /// <summary>Quét hình quạt phía trước, gây sát thương cho mọi mục tiêu còn sống trong tầm.</summary>
     private void DoHit(Step s)
     {
+        HitMoment?.Invoke(stepIndex);
+        float reach = usingSword ? swordRange : range;
+        float halfArc = (usingSword ? swordArc : arc) * 0.5f;
         Vector3 forward = AimDirection();
         Vector3 origin = transform.position + Vector3.up * 1f;
-        float halfArc = arc * 0.5f;
 
         // Duyệt ngược vì danh sách có thể thay đổi khi có mục tiêu chết
         for (int i = Damageable.All.Count - 1; i >= 0; i--)
@@ -238,7 +345,7 @@ public class PlayerMelee : MonoBehaviour
 
             Vector3 point = ClosestPointOn(d, origin);
             Vector3 to = point - origin;
-            if (to.sqrMagnitude > range * range) continue;
+            if (to.sqrMagnitude > reach * reach) continue;
 
             Vector3 flat = to;
             flat.y = 0f;
@@ -263,12 +370,15 @@ public class PlayerMelee : MonoBehaviour
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
-        // Vẽ hình quạt vùng đánh để dễ chỉnh tầm và góc
-        Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.8f);
+        // Vẽ hình quạt vùng đánh (cam: tay không, xanh: cầm kiếm) để dễ chỉnh tầm và góc
         Vector3 origin = transform.position + Vector3.up;
         Vector3 f = transform.forward;
+        Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.8f);
         Gizmos.DrawLine(origin, origin + Quaternion.Euler(0f, -arc * 0.5f, 0f) * f * range);
         Gizmos.DrawLine(origin, origin + Quaternion.Euler(0f, arc * 0.5f, 0f) * f * range);
+        Gizmos.color = new Color(0.4f, 0.8f, 1f, 0.8f);
+        Gizmos.DrawLine(origin, origin + Quaternion.Euler(0f, -swordArc * 0.5f, 0f) * f * swordRange);
+        Gizmos.DrawLine(origin, origin + Quaternion.Euler(0f, swordArc * 0.5f, 0f) * f * swordRange);
     }
 #endif
 }

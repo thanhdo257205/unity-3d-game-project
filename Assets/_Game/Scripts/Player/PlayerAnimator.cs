@@ -4,10 +4,10 @@ using UnityEngine;
 /// Nối PlayerController và SwordSwarm với Animator của mô hình nhân vật.
 /// - Đứng/Đi/Chạy: truyền tốc độ thật (mét/giây) vào Blend Tree; chỉnh tốc độ phát anim cho khớp tốc độ mặt đất để chân không trượt.
 /// - Nhảy, rơi, tiếp đất: truyền trạng thái chạm đất và vận tốc thẳng đứng.
-/// - Phóng kiếm (chuột trái, phím 3): ngay khi bấm, tay chuyển (0.08s) tới tư thế phóng lấy từ clip PhongKiem2 ở lớp thân trên,
+/// - Phóng kiếm (chuột phải khi Ngự Kiếm Thuật đang bật): ngay khi bấm, tay chuyển (0.08s) tới tư thế phóng lấy từ clip PhongKiem2 ở lớp thân trên,
 ///   giữ nguyên tư thế đó khi còn bắn liên tiếp, ngừng bắn 0.35s mới phát phần thu tay về. Kiếm chỉ rời đội hình khi tay tới nơi.
 ///   Mỗi kiếm phóng đi giật cẳng tay/bàn tay phải một chút, thân trên nghiêng theo tâm ngắm (tối đa 25 độ).
-/// - Đổi đội hình: bật anim Niệm Quyết.
+/// - Bật Ngự Kiếm Thuật (phím Q) và đổi đội hình (Z/X/C): bật anim Niệm Quyết.
 /// </summary>
 [DefaultExecutionOrder(-50)]   // chạy trước SwordSwarm để đàn kiếm bám đúng neo trên xương đã nghiêng
 public class PlayerAnimator : MonoBehaviour
@@ -166,6 +166,7 @@ public class PlayerAnimator : MonoBehaviour
         {
             swarm.SwordLaunched += OnSwordLaunched;
             swarm.FormationChanged += OnFormationChanged;
+            swarm.ActiveChanged += OnSwarmActiveChanged;
             swarm.ShootPoseGate = RequestShootPose;
         }
     }
@@ -183,6 +184,7 @@ public class PlayerAnimator : MonoBehaviour
         {
             swarm.SwordLaunched -= OnSwordLaunched;
             swarm.FormationChanged -= OnFormationChanged;
+            swarm.ActiveChanged -= OnSwarmActiveChanged;
             if (swarm.ShootPoseGate == RequestShootPose) swarm.ShootPoseGate = null;
         }
     }
@@ -247,6 +249,9 @@ public class PlayerAnimator : MonoBehaviour
     }
 
     private void OnFormationChanged(FormationType type) { if (animator != null) animator.SetTrigger(CastId); }
+
+    // Bật Ngự Kiếm Thuật: nhân vật vào tư thế niệm quyết trong lúc kiếm bay ra khỏi túi
+    private void OnSwarmActiveChanged(bool on) { if (on && animator != null) animator.SetTrigger(CastId); }
 
     private void Update()
     {

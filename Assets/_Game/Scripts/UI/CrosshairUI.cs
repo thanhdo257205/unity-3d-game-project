@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Tâm ngắm giữa màn hình: các thanh trắng đổi sang màu đỏ khi có mục tiêu nằm trong vùng hỗ trợ ngắm.
+/// Tâm ngắm giữa màn hình: chỉ hiện khi Ngự Kiếm Thuật đang bật (có phi kiếm để ngắm).
+/// Các thanh trắng đổi sang màu đỏ khi có mục tiêu nằm trong vùng hỗ trợ ngắm.
 /// </summary>
 public class CrosshairUI : MonoBehaviour
 {
@@ -21,8 +22,13 @@ public class CrosshairUI : MonoBehaviour
     private void Update()
     {
         if (swarm == null || parts == null) return;
+        bool show = swarm.IsActive;
         Color c = swarm.AimTarget != null ? targetColor : normalColor;
         for (int i = 0; i < parts.Length; i++)
-            if (parts[i] != null) parts[i].color = c;
+        {
+            if (parts[i] == null) continue;
+            parts[i].enabled = show;
+            parts[i].color = c;
+        }
     }
 }

@@ -2,23 +2,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>Các đội hình có thể chọn bằng phím 1/2/3.</summary>
+/// <summary>Các đội hình của Ngự Kiếm Thuật, chọn bằng phím Z/X/C.</summary>
 public enum FormationType
 {
-    /// <summary>Phím 1: Thủ Kiếm - Quạt.</summary>
+    /// <summary>Phím Z: Thủ Kiếm - Quạt.</summary>
     Fan = 0,
-    /// <summary>Phím 2: Hồi Kiếm - Vòng.</summary>
+    /// <summary>Phím X: Hồi Kiếm - Vòng.</summary>
     Ring = 1,
-    /// <summary>Phím 3: Phá Kiếm - Mũi tên.</summary>
+    /// <summary>Phím C: Phá Kiếm - Mũi tên.</summary>
     Arrow = 2
 }
 
 /// <summary>
-/// Đàn phi kiếm của người chơi: sinh ra các thanh kiếm, xếp chúng theo đội hình, và điều khiển việc phóng kiếm.
-/// Phím 1/2/3 đổi đội hình Quạt/Vòng/Mũi tên. Chuột trái phóng một kiếm về tâm ngắm (giữ = bắn liên tiếp).
-/// Phím 3 lao cả đàn vào mục tiêu gần tâm ngắm nhất rồi thu về. Phím R gọi toàn bộ kiếm về.
+/// Ngự Kiếm Thuật: đàn phi kiếm của người chơi. Mặc định TẮT (không có kiếm nào). Phím Q bật (tốn pháp lực): các kiếm lần lượt
+/// bay ra từ túi trữ vật rồi xòe thành Quạt sau lưng; đang bật thì tốn pháp lực mỗi giây và pháp lực không tự hồi; Q lần nữa thì kiếm bay về túi.
+/// Khi bật: chuột phải phóng một kiếm về tâm ngắm (giữ = bắn liên tiếp), Z/X đổi đội hình Quạt/Vòng,
+/// C vào đội hình Mũi tên rồi lao cả đàn vào mục tiêu gần tâm ngắm nhất rồi thu về, R gọi toàn bộ kiếm về.
 /// Số kiếm tối đa lấy từ Thần thức (cảnh giới) trong PlayerStats. Mỗi hành động tốn pháp lực.
-/// Quạt tự chặn cầu từ phía sau/hai bên, Vòng chặn cầu chạm trúng kiếm. Kiếm đang bay đi thì không chặn được.
+/// Quạt tự chặn cầu từ phía sau/hai bên, Vòng chặn cầu chạm trúng kiếm. Kiếm đang bay đi thì không chặn được. Khi tắt thì không chặn gì.
 /// </summary>
 public class SwordSwarm : MonoBehaviour
 {
@@ -42,6 +43,22 @@ public class SwordSwarm : MonoBehaviour
 
     [Tooltip("Dừng hình và rung camera khi kiếm trúng mục tiêu. Có thể để trống thì không có hiệu ứng này.")]
     [SerializeField] private HitFeedback hitFeedback;
+
+    [Header("Bật / tắt Ngự Kiếm Thuật (phím Q)")]
+    [Tooltip("Túi trữ vật bên hông trái: kiếm bay ra từ đây khi bật và bay về đây khi tắt (đối tượng NeoTuiTruVat). Để trống thì kiếm ra từ điểm neo.")]
+    [SerializeField] private Transform pouchAnchor;
+
+    [Tooltip("Pháp lực tốn mỗi lần bật Ngự Kiếm Thuật.")]
+    [SerializeField, Min(0f)] private float activationCost = 20f;
+
+    [Tooltip("Pháp lực tốn mỗi giây khi đang bật. Đang bật thì pháp lực không tự hồi. Cạn pháp lực thì tự tắt.")]
+    [SerializeField, Min(0f)] private float upkeepPerSecond = 2f;
+
+    [Tooltip("Khoảng cách thời gian giữa hai kiếm liên tiếp bay ra khỏi túi khi bật (giây).")]
+    [SerializeField, Min(0.005f)] private float deployInterval = 0.05f;
+
+    [Tooltip("Thời gian kiếm bay ngược về túi rồi biến mất khi tắt (giây).")]
+    [SerializeField, Min(0.05f)] private float despawnTime = 0.25f;
 
     [Header("Số kiếm")]
     [Tooltip("Số phi kiếm đang dùng. Không thể vượt quá Thần thức của cảnh giới hiện tại (PlayerStats). Đổi cảnh giới (F4/F5) thì số kiếm tự đặt về mức tối đa mới.")]
@@ -81,10 +98,10 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField] private ArrowFormation arrow = new ArrowFormation();
 
     [Header("Tiêu hao pháp lực")]
-    [Tooltip("Pháp lực tốn cho mỗi lần phóng một kiếm (chuột trái).")]
+    [Tooltip("Pháp lực tốn cho mỗi lần phóng một kiếm (chuột phải).")]
     [SerializeField, Min(0f)] private float singleShotCost = 4f;
 
-    [Tooltip("Pháp lực tốn cho MỖI kiếm trong loạt Mũi tên (phím 3).")]
+    [Tooltip("Pháp lực tốn cho MỖI kiếm trong loạt Mũi tên (phím C).")]
     [SerializeField, Min(0f)] private float volleyCostPerSword = 3f;
 
     [Tooltip("Pháp lực tốn mỗi lần đổi đội hình.")]
@@ -100,11 +117,11 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Kiếm ý nhận được cho MỖI kiếm trong loạt Mũi tên trúng mục tiêu.")]
     [SerializeField, Min(0f)] private float volleyHitIntent = 1f;
 
-    [Header("Bắn lẻ (chuột trái)")]
+    [Header("Bắn lẻ (chuột phải)")]
     [Tooltip("Tốc độ kiếm lao đi khi bắn lẻ (mét/giây). Số lớn = vút nhanh hơn.")]
     [SerializeField, Min(1f)] private float shotSpeed = 80f;
 
-    [Tooltip("Thời gian giữa hai phát khi giữ chuột trái (giây).")]
+    [Tooltip("Thời gian giữa hai phát khi giữ chuột phải (giây).")]
     [SerializeField, Min(0.02f)] private float fireInterval = 0.12f;
 
     [Tooltip("Sát thương mỗi nhát chém khi bắn lẻ.")]
@@ -125,8 +142,8 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Sau lần bắn cuối, nhân vật còn quay mặt theo camera thêm bao lâu (giây).")]
     [SerializeField, Min(0f)] private float aimHoldTime = 0.8f;
 
-    [Header("Phá Kiếm - Mũi tên (phím 3)")]
-    [Tooltip("Bấm 3 khi chưa ở đội hình Mũi tên: kiếm xếp hàng xong thì lao luôn. Tắt đi thì phải bấm 3 lần nữa mới lao.")]
+    [Header("Phá Kiếm - Mũi tên (phím C)")]
+    [Tooltip("Bấm C khi chưa ở đội hình Mũi tên: kiếm xếp hàng xong thì lao luôn. Tắt đi thì phải bấm C lần nữa mới lao.")]
     [SerializeField] private bool volleyOnKey3 = true;
 
     [Tooltip("Tốc độ lao của loạt kiếm (mét/giây). Thiết kế gốc là 30, đã tăng lên cho cảm giác nhanh hơn.")]
@@ -195,6 +212,7 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField, Min(0)] private int blockSparkCount = 16;
 
     private readonly List<FlyingSword> swords = new List<FlyingSword>();
+    private readonly List<FlyingSword> despawning = new List<FlyingSword>();   // kiếm đang bay về túi để biến mất
     private readonly List<FlyingSword> temp = new List<FlyingSword>();
     private readonly RaycastHit[] rayHits = new RaycastHit[32];
 
@@ -205,6 +223,8 @@ public class SwordSwarm : MonoBehaviour
     private float pendingFireTime;       // giờ phóng kiếm đang chờ tay duỗi tới điểm bắn
     private int pendingFireKind;         // 0 = không chờ, 1 = bắn lẻ, 2 = loạt Mũi tên
     private int nextShooter;
+    private bool isActive;
+    private float nextDeployTime;
 
     // ----- Giá trị cho FlyingSword đọc -----
     public float FormationSettleTime => formationSettleTime;
@@ -218,6 +238,15 @@ public class SwordSwarm : MonoBehaviour
     public float ScaleShrinkTime => scaleShrinkTime;
     public float SingleHitIntent => singleHitIntent;
     public float VolleyHitIntent => volleyHitIntent;
+
+    /// <summary>Ngự Kiếm Thuật đang bật không (bầy kiếm có ở sau lưng không).</summary>
+    public bool IsActive => isActive;
+
+    /// <summary>Pháp lực tốn khi bật Ngự Kiếm Thuật (HUD hiện cạnh phím Q).</summary>
+    public float ActivationCost => activationCost;
+
+    /// <summary>Báo khi bật/tắt Ngự Kiếm Thuật (true = vừa bật).</summary>
+    public event System.Action<bool> ActiveChanged;
 
     /// <summary>Đội hình đang dùng.</summary>
     public FormationType CurrentFormation => current;
@@ -274,6 +303,9 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Điểm neo hiện tại của đội hình trong thế giới.</summary>
     public Vector3 AnchorPosition => anchor != null ? anchor.position : owner.position + Vector3.up * anchorHeight;
 
+    /// <summary>Vị trí túi trữ vật (nơi kiếm bay ra / bay về). Không gán thì dùng điểm neo.</summary>
+    public Vector3 PouchPosition => pouchAnchor != null ? pouchAnchor.position : AnchorPosition;
+
     /// <summary>Điểm đang ngắm trong thế giới (nơi tia từ giữa màn hình chạm vào).</summary>
     public Vector3 AimPoint { get; private set; }
 
@@ -294,6 +326,7 @@ public class SwordSwarm : MonoBehaviour
     private void Awake()
     {
         current = startFormation;
+        isActive = false;
         if (owner == null) owner = transform;
         if (stats != null) swordCount = Mathf.Min(swordCount, stats.MaxSwords);
         if (blockSparks != null) blockSparks.Play();   // đã tắt phát liên tục, chỉ phát khi gọi Emit
@@ -305,6 +338,7 @@ public class SwordSwarm : MonoBehaviour
         {
             stats.RealmChanged += OnRealmChanged;
             stats.Respawned += OnPlayerRespawned;
+            stats.Died += OnPlayerDied;
         }
     }
 
@@ -314,6 +348,7 @@ public class SwordSwarm : MonoBehaviour
         {
             stats.RealmChanged -= OnRealmChanged;
             stats.Respawned -= OnPlayerRespawned;
+            stats.Died -= OnPlayerDied;
         }
     }
 
@@ -326,7 +361,13 @@ public class SwordSwarm : MonoBehaviour
     private void OnPlayerRespawned()
     {
         pendingVolleyTime = -1f;
-        RecallAll();
+        SetActive(false, false);
+    }
+
+    // Chết thì Ngự Kiếm Thuật tắt, kiếm bay về túi
+    private void OnPlayerDied()
+    {
+        SetActive(false, true);
     }
 
     private void Update()
@@ -353,8 +394,18 @@ public class SwordSwarm : MonoBehaviour
             }
         }
 
+        // Đang bật Ngự Kiếm Thuật: tốn pháp lực mỗi giây (và pháp lực không tự hồi); cạn thì tự tắt
+        if (alive && isActive && stats != null && upkeepPerSecond > 0f)
+        {
+            if (!stats.DrainMana(upkeepPerSecond * Time.deltaTime))
+            {
+                stats.ReportManaShortage();
+                SetActive(false, true);
+            }
+        }
+
         // Đội hình Vòng tốn pháp lực mỗi giây; cạn thì tự về Quạt
-        if (alive && current == FormationType.Ring && stats != null && ringDrainPerSecond > 0f)
+        if (alive && isActive && current == FormationType.Ring && stats != null && ringDrainPerSecond > 0f)
         {
             if (!stats.DrainMana(ringDrainPerSecond * Time.deltaTime))
             {
@@ -373,6 +424,7 @@ public class SwordSwarm : MonoBehaviour
         if (swordCount > cap) swordCount = cap;
 
         SyncSwordCount();
+        TickDespawning(Mathf.Min(Time.deltaTime, 0.05f));
         if (swords.Count == 0 || owner == null) return;
 
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
@@ -401,14 +453,19 @@ public class SwordSwarm : MonoBehaviour
 
         if (kb != null)
         {
-            if (kb.digit1Key.wasPressedThisFrame) TryChangeFormation(FormationType.Fan);
-            if (kb.digit2Key.wasPressedThisFrame) TryChangeFormation(FormationType.Ring);
-            if (kb.digit3Key.wasPressedThisFrame) OnArrowKey();
-            if (kb.rKey.wasPressedThisFrame) RecallAll();
+            if (kb.qKey.wasPressedThisFrame) Toggle();
+            if (isActive)
+            {
+                if (kb.zKey.wasPressedThisFrame) TryChangeFormation(FormationType.Fan);
+                if (kb.xKey.wasPressedThisFrame) TryChangeFormation(FormationType.Ring);
+                if (kb.cKey.wasPressedThisFrame) OnArrowKey();
+                if (kb.rKey.wasPressedThisFrame) RecallAll();
+            }
         }
 
+        // Chuột phải phóng kiếm (chỉ khi Ngự Kiếm Thuật đang bật)
         bool cursorLocked = Cursor.lockState == CursorLockMode.Locked;
-        if (cursorLocked && mouse != null && mouse.leftButton.isPressed)
+        if (isActive && cursorLocked && mouse != null && mouse.rightButton.isPressed)
         {
             aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
             if (Time.time >= nextFireTime && pendingFireKind == 0 && RequestSingle())
@@ -456,7 +513,7 @@ public class SwordSwarm : MonoBehaviour
         return false;
     }
 
-    /// <summary>Phím 3: vào đội hình Mũi tên; nếu đã ở đó (hoặc bật "lao luôn") thì lao cả đàn.</summary>
+    /// <summary>Phím C: vào đội hình Mũi tên; nếu đã ở đó (hoặc bật "lao luôn") thì lao cả đàn.</summary>
     private void OnArrowKey()
     {
         if (current != FormationType.Arrow)
@@ -471,6 +528,77 @@ public class SwordSwarm : MonoBehaviour
     }
 
     // ================= Công khai (UI, kiểm thử) =================
+
+    /// <summary>Phím Q: bật nếu đang tắt (tốn pháp lực), tắt nếu đang bật. Không đủ pháp lực thì không bật và báo cảnh báo.</summary>
+    public void Toggle()
+    {
+        if (isActive) { SetActive(false, true); return; }
+        if (stats != null && !stats.IsAlive) return;
+        if (stats != null && !stats.TrySpendMana(activationCost)) return;
+        SetActive(true, true);
+    }
+
+    /// <summary>
+    /// Bật/tắt không tính phí (dùng nội bộ và để kiểm thử). Bật: kiếm lần lượt bay ra từ túi trữ vật rồi xòe thành Quạt.
+    /// Tắt: kiếm bay về túi rồi biến mất (animated = false thì xóa ngay).
+    /// </summary>
+    public void SetActive(bool on, bool animated)
+    {
+        pendingVolleyTime = -1f;
+        pendingFireKind = 0;
+        if (on == isActive) { if (!on && !animated) ClearAllSwords(false); return; }
+        isActive = on;
+        if (on)
+        {
+            current = FormationType.Fan;
+            nextDeployTime = Time.time;
+            for (int i = 0; i < swords.Count; i++) swords[i].OnFormationChanged();
+        }
+        else
+        {
+            ClearAllSwords(animated);
+        }
+        ActiveChanged?.Invoke(on);
+    }
+
+    /// <summary>Gỡ toàn bộ kiếm: bay về túi rồi biến mất (animated) hoặc xóa ngay.</summary>
+    private void ClearAllSwords(bool animated)
+    {
+        for (int i = 0; i < swords.Count; i++)
+        {
+            FlyingSword s = swords[i];
+            if (s == null) continue;
+            s.ClearGuard();
+            if (animated)
+            {
+                s.BeginDespawn(despawnTime);
+                despawning.Add(s);
+            }
+            else Destroy(s.gameObject);
+        }
+        swords.Clear();
+        nextShooter = 0;
+        if (!animated)
+        {
+            for (int i = 0; i < despawning.Count; i++) if (despawning[i] != null) Destroy(despawning[i].gameObject);
+            despawning.Clear();
+        }
+    }
+
+    /// <summary>Cập nhật các kiếm đang bay về túi; tới nơi thì xóa.</summary>
+    private void TickDespawning(float dt)
+    {
+        for (int i = despawning.Count - 1; i >= 0; i--)
+        {
+            FlyingSword s = despawning[i];
+            if (s == null) { despawning.RemoveAt(i); continue; }
+            if (s.TickDespawn(PouchPosition, dt))
+            {
+                Destroy(s.gameObject);
+                despawning.RemoveAt(i);
+            }
+        }
+    }
 
     /// <summary>Đổi đội hình có tốn pháp lực. Không đủ thì không đổi. Cùng đội hình thì không làm gì.</summary>
     public bool TryChangeFormation(FormationType type)
@@ -755,11 +883,12 @@ public class SwordSwarm : MonoBehaviour
     private void SyncSwordCount()
     {
         if (swordPrefab == null || owner == null) return;
+        if (!isActive) return;   // đang tắt: không có kiếm nào ở sau lưng
 
-        while (swords.Count < swordCount)
+        // Kiếm lần lượt bay ra khỏi túi, mỗi thanh cách nhau deployInterval giây
+        while (swords.Count < swordCount && Time.time >= nextDeployTime)
         {
-            Vector3 spawn = AnchorPosition;
-            GameObject go = Instantiate(swordPrefab, spawn, Quaternion.identity, transform);
+            GameObject go = Instantiate(swordPrefab, PouchPosition, Quaternion.LookRotation(Vector3.up, owner.forward), transform);
             go.name = "Kiem_" + swords.Count;
             FlyingSword s = go.GetComponent<FlyingSword>();
             if (s == null)
@@ -771,13 +900,20 @@ public class SwordSwarm : MonoBehaviour
             }
             s.Init(this, swords.Count);
             swords.Add(s);
+            nextDeployTime += deployInterval;
+            if (nextDeployTime < Time.time - deployInterval) nextDeployTime = Time.time;   // tụt khung hình thì đừng dồn cục
         }
 
         while (swords.Count > swordCount)
         {
             FlyingSword last = swords[swords.Count - 1];
             swords.RemoveAt(swords.Count - 1);
-            if (last != null) Destroy(last.gameObject);
+            if (last != null)
+            {
+                last.ClearGuard();
+                last.BeginDespawn(despawnTime);
+                despawning.Add(last);
+            }
         }
         if (nextShooter >= swords.Count) nextShooter = 0;
     }

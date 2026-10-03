@@ -111,6 +111,12 @@ public class FlyingSword : MonoBehaviour
     private float bodyScale = 1f;       // kích thước hiện tại của thân kiếm (1 = kích thước thật)
     private bool scaleInitialized;
 
+    // Bay ngược về túi trữ vật rồi biến mất (khi tắt Ngự Kiếm Thuật)
+    private float despawnDuration = 0.25f;
+    private float despawnElapsed;
+    private Vector3 despawnStart;
+    private float despawnStartScale = 1f;
+
     /// <summary>Đàn kiếm sở hữu thanh kiếm này.</summary>
     public SwordSwarm Swarm { get; private set; }
 
@@ -236,6 +242,36 @@ public class FlyingSword : MonoBehaviour
         Mode = SwordMode.Return;
         returnSettleTime = settleTime;
         Velocity *= Swarm != null ? Swarm.ReturnVelocityKeep : 0.15f;
+    }
+
+    /// <summary>Bắt đầu bay về túi trữ vật rồi biến mất trong duration giây. Sau đó SwordSwarm gọi <see cref="TickDespawn"/> mỗi khung hình.</summary>
+    public void BeginDespawn(float duration)
+    {
+        scheduled = false;
+        guarding = false;
+        despawnDuration = Mathf.Max(0.05f, duration);
+        despawnElapsed = 0f;
+        despawnStart = transform.position;
+        despawnStartScale = bodyScale;
+    }
+
+    /// <summary>Cập nhật chuyến bay về túi. Trả về true khi kiếm đã tới nơi (nên xóa đi).</summary>
+    public bool TickDespawn(Vector3 target, float dt)
+    {
+        despawnElapsed += dt;
+        float u = Mathf.Clamp01(despawnElapsed / despawnDuration);
+        float e = u * u;   // ban đầu chậm rồi vút về túi
+        Vector3 pos = Vector3.Lerp(despawnStart, target, e);
+        Vector3 to = target - pos;
+        if (to.sqrMagnitude > 0.0004f)
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(to.normalized, Vector3.up), 1f - Mathf.Exp(-30f * dt));
+        transform.position = pos;
+        if (model != null)
+        {
+            float sc = Mathf.Lerp(despawnStartScale, despawnStartScale * 0.2f, e);
+            model.localScale = new Vector3(sc, sc, sc);
+        }
+        return u >= 1f;
     }
 
     /// <summary>Cập nhật một khung hình. Do SwordSwarm gọi.</summary>

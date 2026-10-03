@@ -161,6 +161,13 @@ public class PlayerStats : MonoBehaviour
         return true;
     }
 
+    /// <summary>Hồi pháp lực (dùng đan dược). Không vượt quá mức tối đa.</summary>
+    public void RestoreMana(float amount)
+    {
+        if (!IsAlive || amount <= 0f) return;
+        mana = Mathf.Min(MaxMana, mana + amount);
+    }
+
     /// <summary>Báo "pháp lực không đủ" mà không trừ gì (ví dụ khi đội hình Vòng cạn pháp lực).</summary>
     public void ReportManaShortage()
     {

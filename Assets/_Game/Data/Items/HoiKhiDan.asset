@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1edc2967d091254abccf01a9465f519, type: 3}
+  m_Name: HoiKhiDan
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  displayName: "H\u1ED3i Kh\xED \u0110an"
+  icon: {fileID: 21300000, guid: f6e663d8dc61aa146996d64636932e44, type: 3}
+  type: 2
+  prefab: {fileID: 604753869864441518, guid: f33de33b337301447a6f74205a7ba53c, type: 3}
+  maxStack: 20
+  manaRestore: 80

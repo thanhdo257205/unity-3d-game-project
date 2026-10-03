@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1edc2967d091254abccf01a9465f519, type: 3}
+  m_Name: ThanhTrucKiem
+  m_EditorClassIdentifier: Assembly-CSharp::ItemData
+  displayName: "Thanh Tr\xFAc Ki\u1EBFm"
+  icon: {fileID: 21300000, guid: d1b641f479946ee48834c989b6a0c102, type: 3}
+  type: 0
+  prefab: {fileID: 7459347544330250021, guid: 21cee23e9b9e22c4ab5b4306aac384ac, type: 3}
+  maxStack: 1
+  manaRestore: 80

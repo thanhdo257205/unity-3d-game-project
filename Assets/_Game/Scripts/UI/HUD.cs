@@ -6,7 +6,9 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Giao diện người chơi bằng tiếng Việt (tự dựng khi bấm Play, không cần kéo thả):
-/// - Góc dưới trái: thanh Máu (đỏ), Pháp lực (xanh lam), Kiếm ý (vàng kim) kèm số, dòng "Kiếm: sẵn sàng/tổng", ba ô đội hình Quạt/Vòng/Mũi tên.
+/// - Góc dưới trái: thanh Máu (đỏ), Pháp lực (xanh lam), Kiếm ý (vàng kim) kèm số. Phía trên là ô "Q Ngự Kiếm Thuật" (khi tắt)
+///   hoặc ba ô đội hình Z/X/C kèm dòng "Kiếm: sẵn sàng/tổng" (khi bật).
+/// - Giữa cạnh dưới: thanh ô đồ 6 ô kiểu Minecraft (phím 1-6 / lăn chuột), tên vật phẩm hiện 1.5 giây khi đổi ô.
 /// - Góc trên trái: tên cảnh giới.
 /// - Số sát thương bay lên khi đánh trúng, viền đỏ màn hình khi bị đánh, cảnh báo "Pháp lực không đủ".
 /// - Màn hình "Đạo tiêu thân vẫn" kèm nút "Thử lại" khi chết.
@@ -23,6 +25,9 @@ public class HUD : MonoBehaviour
 
     [Tooltip("Vòng đời người chơi (hiện màn hình chết, nút Thử lại).")]
     [SerializeField] private PlayerLife life;
+
+    [Tooltip("Thanh ô đồ của người chơi (đối tượng NhanVat).")]
+    [SerializeField] private Hotbar hotbar;
 
     [Header("Phông chữ")]
     [Tooltip("Danh sách phông chữ hệ thống thử theo thứ tự, phải hỗ trợ dấu tiếng Việt. Cái đầu tiên máy có sẽ được dùng.")]
@@ -46,6 +51,28 @@ public class HUD : MonoBehaviour
 
     [Tooltip("Màu chữ.")]
     [SerializeField] private Color textColor = new Color(0.96f, 0.94f, 0.88f);
+
+    [Header("Thanh ô đồ")]
+    [Tooltip("Kích thước mỗi ô (điểm ảnh trên màn hình chuẩn 1920x1080).")]
+    [SerializeField, Min(40f)] private float hotbarSlotSize = 76f;
+
+    [Tooltip("Khoảng cách giữa hai ô (điểm ảnh).")]
+    [SerializeField, Min(0f)] private float hotbarGap = 8f;
+
+    [Tooltip("Khoảng cách từ mép dưới màn hình tới đáy thanh ô đồ (điểm ảnh).")]
+    [SerializeField, Min(0f)] private float hotbarBottom = 24f;
+
+    [Tooltip("Ô đang chọn to hơn các ô khác bao nhiêu lần.")]
+    [SerializeField, Range(1f, 1.5f)] private float hotbarSelectedScale = 1.14f;
+
+    [Tooltip("Thời gian tên vật phẩm hiện phía trên thanh khi đổi ô (giây).")]
+    [SerializeField, Min(0.2f)] private float itemNameTime = 1.5f;
+
+    [Tooltip("Màu nền ô đồ.")]
+    [SerializeField] private Color hotbarSlotColor = new Color(0.04f, 0.05f, 0.08f, 0.78f);
+
+    [Tooltip("Màu nền ô đang chọn (sáng hơn).")]
+    [SerializeField] private Color hotbarSelectedColor = new Color(0.22f, 0.18f, 0.07f, 0.92f);
 
     [Header("Cảnh báo và hiệu ứng")]
     [Tooltip("Thời gian thanh Pháp lực nháy đỏ và dòng 'Pháp lực không đủ' hiện (giây).")]
@@ -99,6 +126,25 @@ public class HUD : MonoBehaviour
     private Text healthText, manaText, intentText, swordText, realmText, manaWarnText;
     private Image[] slotBack = new Image[3];
     private Text[] slotLabel = new Text[3];
+    private RectTransform qBox;
+    private Text qText;
+
+    // Thanh ô đồ
+    private class HotbarSlotUI
+    {
+        public RectTransform root;
+        public Image back;
+        public Image icon;
+        public Text number;
+        public Text count;
+        public Text fallback;     // chữ thay biểu tượng khi vật phẩm chưa có hình
+        public GameObject selFrame;
+    }
+    private readonly HotbarSlotUI[] hotSlots = new HotbarSlotUI[Hotbar.SlotCount];
+    private Text itemNameText;
+    private string itemNameString = "";
+    private Color itemNameColor;
+    private float itemNameStart = -10f;
     private GameObject deathPanel;
     private CanvasGroup deathGroup;
     private Sprite whiteSprite;
@@ -135,6 +181,7 @@ public class HUD : MonoBehaviour
     private float stonesPopupStart = -10f;
 
     private static readonly string[] SlotNames = { "Quạt", "Vòng", "Mũi tên" };
+    private static readonly string[] SlotKeys = { "Z", "X", "C" };
 
     private void Awake()
     {
@@ -157,6 +204,11 @@ public class HUD : MonoBehaviour
             life.DeathScreenShown += OnDeathScreen;
             life.Respawned += OnRespawned;
         }
+        if (hotbar != null)
+        {
+            hotbar.SelectionChanged += OnHotbarSelection;
+            hotbar.ItemUsed += OnHotbarItemUsed;
+        }
         Damageable.AnyDamaged += OnAnyDamaged;
     }
 
@@ -172,6 +224,11 @@ public class HUD : MonoBehaviour
         {
             life.DeathScreenShown -= OnDeathScreen;
             life.Respawned -= OnRespawned;
+        }
+        if (hotbar != null)
+        {
+            hotbar.SelectionChanged -= OnHotbarSelection;
+            hotbar.ItemUsed -= OnHotbarItemUsed;
         }
         Damageable.AnyDamaged -= OnAnyDamaged;
     }
@@ -197,6 +254,7 @@ public class HUD : MonoBehaviour
         BuildVignette();
         BuildStatusPanel();
         BuildSlots();
+        BuildHotbar();
         BuildRealmPanel();
         BuildStonesUI();
         BuildDeathPanel();
@@ -277,19 +335,157 @@ public class HUD : MonoBehaviour
         return fill;
     }
 
-    /// <summary>Ba ô đội hình 1/2/3 nằm ngay phía trên bảng tài nguyên.</summary>
+    /// <summary>Ba ô đội hình Z/X/C (khi Ngự Kiếm Thuật bật) hoặc ô "Q Ngự Kiếm Thuật" (khi tắt), nằm ngay phía trên bảng tài nguyên.</summary>
     private void BuildSlots()
     {
         float w = 130f, h = 46f, gap = 10f;
         for (int i = 0; i < 3; i++)
         {
-            RectTransform slot = MakePanel("OĐộiHình" + (i + 1), root, new Vector2(0f, 0f), new Vector2(0f, 0f),
+            RectTransform slot = MakePanel("OĐộiHình" + SlotKeys[i], root, new Vector2(0f, 0f), new Vector2(0f, 0f),
                 new Vector2(30f + i * (w + gap), 210f), new Vector2(w, h));
             slotBack[i] = slot.GetComponent<Image>();
-            Text t = MakeText(slot, "Ten", (i + 1) + "  " + SlotNames[i], 22, TextAnchor.MiddleCenter, textColor);
+            Text t = MakeText(slot, "Ten", SlotKeys[i] + "  " + SlotNames[i], 22, TextAnchor.MiddleCenter, textColor);
             Stretch(t.rectTransform);
             slotLabel[i] = t;
         }
+
+        qBox = MakePanel("ONgungKiemThuat", root, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(30f, 210f), new Vector2(w * 3f + gap * 2f, h));
+        qText = MakeText(qBox, "Ten", "Q  Ngự Kiếm Thuật", 22, TextAnchor.MiddleCenter, new Color(textColor.r, textColor.g, textColor.b, 0.85f));
+        Stretch(qText.rectTransform);
+    }
+
+    /// <summary>Thanh ô đồ 6 ô ở giữa cạnh dưới màn hình: nền tối, viền vàng kim, số 1-6 ở góc, biểu tượng ở giữa, số lượng ở góc dưới.</summary>
+    private void BuildHotbar()
+    {
+        float size = hotbarSlotSize;
+        for (int i = 0; i < Hotbar.SlotCount; i++)
+        {
+            HotbarSlotUI ui = new HotbarSlotUI();
+            Image back = NewObject<Image>("OĐồ" + (i + 1), root);
+            back.sprite = whiteSprite;
+            back.color = hotbarSlotColor;
+            back.raycastTarget = false;
+            RectTransform rt = back.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(size, size);
+            rt.anchoredPosition = new Vector2((i - (Hotbar.SlotCount - 1) * 0.5f) * (size + hotbarGap), hotbarBottom + size * 0.5f);
+            AddFrame(rt, borderColor, 2f);
+
+            // Khung sáng dày bao ngoài ô đang chọn
+            RectTransform sel = new GameObject("VienChon", typeof(RectTransform)).GetComponent<RectTransform>();
+            sel.SetParent(rt, false);
+            sel.anchorMin = Vector2.zero; sel.anchorMax = Vector2.one;
+            sel.offsetMin = new Vector2(-3f, -3f); sel.offsetMax = new Vector2(3f, 3f);
+            AddFrame(sel, new Color(1f, 0.9f, 0.5f, 1f), 4f);
+            ui.selFrame = sel.gameObject;
+
+            Image icon = NewObject<Image>("BieuTuong", rt);
+            icon.raycastTarget = false;
+            icon.preserveAspect = true;
+            icon.rectTransform.anchorMin = Vector2.zero; icon.rectTransform.anchorMax = Vector2.one;
+            icon.rectTransform.offsetMin = new Vector2(8f, 8f); icon.rectTransform.offsetMax = new Vector2(-8f, -8f);
+            icon.enabled = false;
+            ui.icon = icon;
+
+            Text fb = MakeText(rt, "Chu", "", 20, TextAnchor.MiddleCenter, textColor);
+            Stretch(fb.rectTransform);
+            ui.fallback = fb;
+
+            Text num = MakeText(rt, "So", (i + 1).ToString(), 20, TextAnchor.UpperLeft, new Color(1f, 0.92f, 0.65f));
+            Stretch(num.rectTransform);
+            num.rectTransform.offsetMin = new Vector2(6f, 0f); num.rectTransform.offsetMax = new Vector2(0f, -3f);
+            ui.number = num;
+
+            Text cnt = MakeText(rt, "SoLuong", "", 22, TextAnchor.LowerRight, textColor);
+            Stretch(cnt.rectTransform);
+            cnt.rectTransform.offsetMin = new Vector2(0f, 3f); cnt.rectTransform.offsetMax = new Vector2(-6f, 0f);
+            Outline co = cnt.gameObject.AddComponent<Outline>();
+            co.effectColor = new Color(0f, 0f, 0f, 0.9f); co.effectDistance = new Vector2(1.5f, -1.5f);
+            ui.count = cnt;
+
+            ui.root = rt;
+            ui.back = back;
+            hotSlots[i] = ui;
+        }
+
+        itemNameText = MakeText(root, "TenVatPham", "", 30, TextAnchor.MiddleCenter, textColor);
+        SetRect(itemNameText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, hotbarBottom + size * hotbarSelectedScale + 14f), new Vector2(700f, 44f));
+        itemNameText.rectTransform.pivot = new Vector2(0.5f, 0f);
+        Outline o = itemNameText.gameObject.AddComponent<Outline>();
+        o.effectColor = new Color(0f, 0f, 0f, 0.85f); o.effectDistance = new Vector2(2f, -2f);
+        itemNameText.gameObject.SetActive(false);
+    }
+
+    private void OnHotbarSelection(int index)
+    {
+        ItemData item = hotbar.GetItem(index);
+        itemNameString = item != null ? item.displayName : "Tay không";
+        itemNameColor = textColor;
+        itemNameStart = Time.unscaledTime;
+    }
+
+    private void OnHotbarItemUsed(ItemData item)
+    {
+        itemNameString = item.displayName + (item.type == ItemType.DanDuoc ? ": +" + Mathf.RoundToInt(item.manaRestore) + " pháp lực" : "");
+        itemNameColor = new Color(0.55f, 0.85f, 1f);
+        itemNameStart = Time.unscaledTime;
+    }
+
+    /// <summary>Cập nhật biểu tượng, số lượng, ô đang chọn (to hơn, viền sáng) và tên vật phẩm.</summary>
+    private void UpdateHotbar()
+    {
+        if (hotbar == null) return;
+        for (int i = 0; i < Hotbar.SlotCount; i++)
+        {
+            HotbarSlotUI ui = hotSlots[i];
+            ItemData item = hotbar.GetItem(i);
+            bool sel = i == hotbar.SelectedIndex;
+
+            if (item != null && item.icon != null)
+            {
+                if (ui.icon.sprite != item.icon) ui.icon.sprite = item.icon;
+                ui.icon.enabled = true;
+                ui.fallback.text = "";
+            }
+            else
+            {
+                ui.icon.enabled = false;
+                ui.fallback.text = item != null ? ShortName(item.displayName) : "";
+            }
+
+            int count = hotbar.GetCount(i);
+            string ct = count > 1 ? count.ToString() : "";
+            if (ui.count.text != ct) ui.count.text = ct;
+
+            ui.back.color = sel ? hotbarSelectedColor : hotbarSlotColor;
+            if (ui.selFrame.activeSelf != sel) ui.selFrame.SetActive(sel);
+            float target = sel ? hotbarSelectedScale : 1f;
+            float cur = ui.root.localScale.x;
+            float next = Mathf.MoveTowards(cur, target, Time.unscaledDeltaTime * 3f);
+            ui.root.localScale = new Vector3(next, next, 1f);
+        }
+
+        float t = (Time.unscaledTime - itemNameStart) / itemNameTime;
+        if (t >= 0f && t < 1f)
+        {
+            if (!itemNameText.gameObject.activeSelf) itemNameText.gameObject.SetActive(true);
+            itemNameText.text = itemNameString;
+            Color c = itemNameColor;
+            c.a = t < 0.7f ? 1f : 1f - (t - 0.7f) / 0.3f;
+            itemNameText.color = c;
+        }
+        else if (itemNameText.gameObject.activeSelf) itemNameText.gameObject.SetActive(false);
+    }
+
+    /// <summary>Chữ thay biểu tượng: các chữ cái đầu của tên (tối đa 3).</summary>
+    private static string ShortName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "";
+        string[] parts = name.Split(' ');
+        string r = "";
+        for (int i = 0; i < parts.Length && r.Length < 3; i++) if (parts[i].Length > 0) r += parts[i][0];
+        return r;
     }
 
     /// <summary>Bộ đếm linh thạch dưới tên cảnh giới và dòng "+N linh thạch" bay lên giữa màn hình.</summary>
@@ -375,6 +571,7 @@ public class HUD : MonoBehaviour
         if (stats == null) return;
         UpdateBars();
         UpdateSwordInfo();
+        UpdateHotbar();
         UpdateWarnings();
         UpdateNumbers();
         UpdateEnemyBars();
@@ -412,6 +609,14 @@ public class HUD : MonoBehaviour
     private void UpdateSwordInfo()
     {
         if (swarm == null) return;
+        bool active = swarm.IsActive;
+        if (qBox.gameObject.activeSelf == active) qBox.gameObject.SetActive(!active);
+        if (swordText.gameObject.activeSelf != active) swordText.gameObject.SetActive(active);
+        qText.text = "Q  Ngự Kiếm Thuật  (" + Mathf.RoundToInt(swarm.ActivationCost) + " pháp lực)";
+        for (int i = 0; i < 3; i++)
+            if (slotBack[i].gameObject.activeSelf != active) slotBack[i].gameObject.SetActive(active);
+        if (!active) return;
+
         swordText.text = "Kiếm: " + swarm.ReadySwordCount + "/" + swarm.ActualSwordCount;
 
         int cur = (int)swarm.CurrentFormation;
