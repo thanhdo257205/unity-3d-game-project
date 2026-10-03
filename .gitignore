@@ -1,0 +1,49 @@
+# Unity - các thư mục do Unity tự sinh, không cần commit
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset meta cho thư mục tự sinh
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Build / crash
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
+sysinfo.txt
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Blender
+*.blend1
+*.blend2
