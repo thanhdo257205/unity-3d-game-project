@@ -84,6 +84,12 @@ public class TaTu : EnemyBase
     [SerializeField] private bool fleeOnlyOnce = true;
 
     [Header("Anim niệm / phóng")]
+    [Tooltip("Bật: khi đang chiến đấu (Phát hiện, Tấn công) tà tu giữ nguyên dáng ngự kiếm (tay hơi giơ lên) thay vì buông tay. Hết chiến đấu hoặc bỏ chạy thì hạ tay.")]
+    [SerializeField] private bool holdCastPoseInCombat = true;
+
+    [Tooltip("Thời gian chuyển từ buông tay sang dáng ngự kiếm (giây).")]
+    [SerializeField, Min(0.01f)] private float combatPoseBlend = 0.25f;
+
     [Tooltip("Từ lúc giơ tay tới lúc phi kiếm lao đi (giây).")]
     [SerializeField, Min(0f)] private float castDelay = 0.12f;
 
@@ -121,6 +127,9 @@ public class TaTu : EnemyBase
     private float pendingFireballAt = -1f;
     private float retractAt = -1f;
     private float retractDoneAt = -1f;
+
+    private bool poseHeld;
+    private float poseGraceUntil;
 
     private float fleeEnd;
     private bool hasFled;
@@ -170,6 +179,7 @@ public class TaTu : EnemyBase
     {
         base.Update();
         if (State == EnemyState.Dead) return;
+        UpdateCombatPose();
         UpdateCast();
         UpdateAnimator();
     }
@@ -312,9 +322,47 @@ public class TaTu : EnemyBase
         }
     }
 
+    /// <summary>Giữ dáng ngự kiếm (tay hơi giơ) suốt lúc chiến đấu; hết chiến đấu hoặc bỏ chạy thì hạ tay.</summary>
+    private void UpdateCombatPose()
+    {
+        if (animator == null || upperLayer < 0 || !holdCastPoseInCombat) return;
+        bool want = State == EnemyState.Detect || State == EnemyState.Attack;
+
+        if (poseHeld && Time.time > poseGraceUntil && !IsHoldStateActive())
+            poseHeld = false;   // bị anim khác chen vào (Bị Đánh): đợi nó xong rồi giơ tay lại
+
+        if (want && !poseHeld)
+        {
+            // Chỉ giơ lại khi lớp thân trên đã rảnh (không đang phát Bị Đánh / thu tay)
+            AnimatorStateInfo cur = animator.GetCurrentAnimatorStateInfo(upperLayer);
+            if (cur.shortNameHash == EmptyUpperId && !animator.IsInTransition(upperLayer) && retractDoneAt < 0f)
+            {
+                animator.SetFloat(HoldTimeId, castKeyTime / clipLength);
+                animator.CrossFadeInFixedTime(HoldStateId, combatPoseBlend, upperLayer);
+                poseHeld = true;
+                poseGraceUntil = Time.time + combatPoseBlend + 0.2f;
+                retractAt = -1f;
+            }
+        }
+        else if (!want && poseHeld)
+        {
+            poseHeld = false;
+            retractAt = Time.time;   // UpdateCast sẽ phát phần hạ tay
+        }
+    }
+
+    private bool IsHoldStateActive()
+    {
+        AnimatorStateInfo cur = animator.GetCurrentAnimatorStateInfo(upperLayer);
+        if (cur.shortNameHash == HoldStateId) return true;
+        if (animator.IsInTransition(upperLayer)) return animator.GetNextAnimatorStateInfo(upperLayer).shortNameHash == HoldStateId;
+        return false;
+    }
+
     private void PlayCastAnim()
     {
         if (animator == null || upperLayer < 0) return;
+        if (poseHeld) return;   // tay đã ở dáng ngự kiếm rồi
         animator.SetFloat(HoldTimeId, castKeyTime / clipLength);
         animator.CrossFadeInFixedTime(HoldStateId, 0.08f, upperLayer);
         retractAt = Time.time + castHold;
@@ -349,6 +397,7 @@ public class TaTu : EnemyBase
 
     protected override void OnDiedExtra()
     {
+        poseHeld = false;
         if (animator != null)
         {
             animator.ResetTrigger(HitId);
@@ -362,6 +411,7 @@ public class TaTu : EnemyBase
     protected override void OnRevivedExtra()
     {
         CancelActions();
+        poseHeld = false;
         hasFled = false;
         if (animator != null)
         {
