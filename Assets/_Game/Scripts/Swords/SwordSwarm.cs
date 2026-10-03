@@ -36,6 +36,9 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Camera dùng để ngắm. Để trống thì dùng camera chính.")]
     [SerializeField] private Camera aimCamera;
 
+    [Tooltip("Dừng hình và rung camera khi kiếm trúng mục tiêu. Có thể để trống thì không có hiệu ứng này.")]
+    [SerializeField] private HitFeedback hitFeedback;
+
     [Header("Số kiếm")]
     [Tooltip("Số phi kiếm đang dùng. Đổi lúc đang Play (ví dụ 3 → 9 → 24) để xem đội hình tự giãn ra. Sau này sẽ bị giới hạn bởi Thần thức.")]
     [SerializeField, Range(0, MaxSwords)] private int swordCount = 9;
@@ -61,8 +64,8 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField] private ArrowFormation arrow = new ArrowFormation();
 
     [Header("Bắn lẻ (chuột trái)")]
-    [Tooltip("Tốc độ kiếm lao đi khi bắn lẻ (mét/giây).")]
-    [SerializeField, Min(1f)] private float shotSpeed = 45f;
+    [Tooltip("Tốc độ kiếm lao đi khi bắn lẻ (mét/giây). Số lớn = vút nhanh hơn.")]
+    [SerializeField, Min(1f)] private float shotSpeed = 80f;
 
     [Tooltip("Thời gian giữa hai phát khi giữ chuột trái (giây).")]
     [SerializeField, Min(0.02f)] private float fireInterval = 0.12f;
@@ -89,8 +92,8 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Bấm 3 khi chưa ở đội hình Mũi tên: kiếm xếp hàng xong thì lao luôn. Tắt đi thì phải bấm 3 lần nữa mới lao.")]
     [SerializeField] private bool volleyOnKey3 = true;
 
-    [Tooltip("Tốc độ lao của loạt kiếm (mét/giây).")]
-    [SerializeField, Min(1f)] private float volleySpeed = 30f;
+    [Tooltip("Tốc độ lao của loạt kiếm (mét/giây). Thiết kế gốc là 30, đã tăng lên cho cảm giác nhanh hơn.")]
+    [SerializeField, Min(1f)] private float volleySpeed = 55f;
 
     [Tooltip("Khoảng cách thời gian giữa hai kiếm liên tiếp xuất phát (giây).")]
     [SerializeField, Min(0f)] private float volleyInterval = 0.08f;
@@ -263,6 +266,12 @@ public class SwordSwarm : MonoBehaviour
         if (type == current) return;
         current = type;
         for (int i = 0; i < swords.Count; i++) swords[i].OnFormationChanged();
+    }
+
+    /// <summary>FlyingSword gọi khi một nhát chém (bắn lẻ hoặc loạt Mũi tên) trúng mục tiêu: dừng hình và rung camera.</summary>
+    public void NotifyStrikeHit(Damageable target)
+    {
+        if (hitFeedback != null) hitFeedback.OnHit(!target.IsAlive);
     }
 
     /// <summary>Bấm R: gọi toàn bộ kiếm về đội hình, hủy mọi đòn đang hẹn giờ.</summary>

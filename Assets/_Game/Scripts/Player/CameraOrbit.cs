@@ -32,8 +32,23 @@ public class CameraOrbit : MonoBehaviour
     [Tooltip("Tự động khóa và ẩn con trỏ chuột khi bấm Play.")]
     [SerializeField] private bool lockCursorOnStart = true;
 
+    [Header("Rung camera")]
+    [Tooltip("Góc rung tối đa (độ) khi rung mạnh nhất. Số lớn = rung dữ hơn. Mỗi đòn đánh trúng chỉ rung một phần nhỏ của mức này.")]
+    [SerializeField, Min(0f)] private float maxShakeAngle = 3f;
+
+    [Tooltip("Tần số rung (lần/giây). Số lớn = rung rất nhanh và mịn, số nhỏ = lắc chậm.")]
+    [SerializeField, Min(1f)] private float shakeFrequency = 28f;
+
+    [Tooltip("Tốc độ tắt dần của rung (mỗi giây). 2.5 nghĩa là rung mạnh nhất tắt hẳn sau khoảng 0.4 giây.")]
+    [SerializeField, Min(0.1f)] private float shakeDecay = 2.5f;
+
+    [Tooltip("Mức rung tối đa khi nhiều đòn cùng trúng một lúc (0 đến 1). Giữ dưới 1 để cả loạt kiếm trúng không làm hình rung quá dữ.")]
+    [SerializeField, Range(0.1f, 1f)] private float maxTrauma = 0.7f;
+
     private float yaw;
     private float pitch;
+    private float trauma;          // mức rung hiện tại, 0 đến 1
+    private float noiseSeed;
 
     /// <summary>Góc xoay ngang (độ). PlayerController dùng để biết "phía trước" là hướng nào.</summary>
     public float Yaw => yaw;
@@ -41,8 +56,18 @@ public class CameraOrbit : MonoBehaviour
     /// <summary>Góc cúi/ngẩng (độ).</summary>
     public float Pitch => pitch;
 
+    /// <summary>
+    /// Làm camera rung. amount từ 0 đến 1: ~0.4 là rung nhẹ khi trúng đòn, ~0.8 là rung mạnh khi hạ địch.
+    /// Các lần rung cộng dồn nhưng không vượt quá "Mức rung tối đa".
+    /// </summary>
+    public void AddShake(float amount)
+    {
+        trauma = Mathf.Min(maxTrauma, trauma + Mathf.Max(0f, amount));
+    }
+
     private void Start()
     {
+        noiseSeed = Random.value * 100f;
         Vector3 euler = transform.eulerAngles;
         yaw = euler.y;
         pitch = euler.x > 180f ? euler.x - 360f : euler.x;
@@ -52,6 +77,8 @@ public class CameraOrbit : MonoBehaviour
 
     private void Update()
     {
+        // Rung tắt dần theo thời gian thật để vẫn chạy trong lúc dừng hình
+        trauma = Mathf.MoveTowards(trauma, 0f, shakeDecay * Time.unscaledDeltaTime);
         HandleCursorLock();
         if (Cursor.lockState != CursorLockMode.Locked) return;
 
@@ -74,7 +101,19 @@ public class CameraOrbit : MonoBehaviour
     {
         if (followTarget != null)
             transform.position = followTarget.position + Vector3.up * heightOffset;
-        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f) * ShakeRotation();
+    }
+
+    /// <summary>Góc lệch ngẫu nhiên mượt (nhiễu Perlin) do rung. Chỉ ảnh hưởng hình ảnh, không đổi hướng đi/ngắm đã lưu.</summary>
+    private Quaternion ShakeRotation()
+    {
+        if (trauma <= 0f) return Quaternion.identity;
+        float power = trauma * trauma * maxShakeAngle;
+        float t = Time.unscaledTime * shakeFrequency;
+        float x = (Mathf.PerlinNoise(noiseSeed, t) - 0.5f) * 2f;
+        float y = (Mathf.PerlinNoise(noiseSeed + 31.7f, t) - 0.5f) * 2f;
+        float z = (Mathf.PerlinNoise(noiseSeed + 67.3f, t) - 0.5f) * 2f;
+        return Quaternion.Euler(x * power, y * power, z * power * 0.5f);
     }
 
     /// <summary>Esc = thả chuột; bấm chuột trái vào cửa sổ Game = khóa lại.</summary>

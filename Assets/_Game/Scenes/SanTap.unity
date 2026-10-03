@@ -2174,6 +2174,10 @@ MonoBehaviour:
   minPitch: -30
   maxPitch: 60
   lockCursorOnStart: 1
+  maxShakeAngle: 3
+  shakeFrequency: 28
+  shakeDecay: 2.5
+  maxTrauma: 0.7
 --- !u!1 &1513576170
 GameObject:
   m_ObjectHideFlags: 0
@@ -2220,6 +2224,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1579720756}
   - component: {fileID: 1579720755}
+  - component: {fileID: 1579720757}
   m_Layer: 0
   m_Name: BayKiem
   m_TagString: Untagged
@@ -2243,6 +2248,7 @@ MonoBehaviour:
   owner: {fileID: 2127460590}
   player: {fileID: 2127460591}
   aimCamera: {fileID: 0}
+  hitFeedback: {fileID: 1579720757}
   swordCount: 9
   startFormation: 0
   anchorHeight: 1.1
@@ -2250,12 +2256,12 @@ MonoBehaviour:
   dampingRatio: 0.8
   maxSwordSpeed: 70
   fan:
-    arcAngle: 160
-    radius: 1.5
+    arcAngle: 180
+    radius: 1.8
     layerCapacity: 12
     layerSpacing: 0.5
     tiltBack: 20
-    behindDistance: 0.45
+    behindDistance: 0.85
     heightOffset: -0.15
   ring:
     radius: 2.5
@@ -2270,7 +2276,7 @@ MonoBehaviour:
     behindDistance: 0.7
     sideOffset: -1
     heightOffset: 0
-  shotSpeed: 45
+  shotSpeed: 80
   fireInterval: 0.12
   strikeDamage: 14
   shotOvershoot: 0.5
@@ -2279,7 +2285,7 @@ MonoBehaviour:
   aimAssistAngle: 6
   aimHoldTime: 0.8
   volleyOnKey3: 1
-  volleySpeed: 30
+  volleySpeed: 55
   volleyInterval: 0.08
   volleyReturnTime: 1.5
   volleyDamage: 14
@@ -2305,6 +2311,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1579720757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1579720754}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f29b7139151e474e8a5c5aa45d0970c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HitFeedback
+  cameraOrbit: {fileID: 1459372523}
+  hitStopDuration: 0.05
+  killHitStopDuration: 0.1
+  hitStopMinInterval: 0.12
+  hitShake: 0.4
+  killShake: 0.8
 --- !u!1 &1621702564
 GameObject:
   m_ObjectHideFlags: 0

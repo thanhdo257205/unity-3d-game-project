@@ -50,6 +50,22 @@ public class FlyingSword : MonoBehaviour
     [Tooltip("Trail Renderer tạo vệt sáng sau kiếm. Để trống thì tự tìm trên cùng đối tượng.")]
     [SerializeField] private TrailRenderer trail;
 
+    [Header("Cảm giác tốc độ khi lao đi")]
+    [Tooltip("Độ rộng vệt sáng khi đang lao đi tấn công (mét). Lớn hơn độ rộng lúc ở trong đội hình thì vệt 'phình ra' cho cảm giác vút.")]
+    [SerializeField, Min(0f)] private float strikeTrailWidth = 0.16f;
+
+    [Tooltip("Độ dài vệt sáng khi đang lao đi (giây). Dài hơn lúc ở trong đội hình.")]
+    [SerializeField, Min(0f)] private float strikeTrailTime = 0.3f;
+
+    [Tooltip("Thân kiếm được kéo dài theo hướng bay bao nhiêu lần khi đang lao đi (1 = không kéo). Như vệt mờ chuyển động.")]
+    [SerializeField, Min(1f)] private float strikeStretch = 1.4f;
+
+    [Tooltip("Độ nhạy khi chuyển giữa dáng 'bay nhanh' và dáng bình thường. Số lớn = chuyển gắt.")]
+    [SerializeField, Min(0.1f)] private float feelSharpness = 16f;
+
+    [Tooltip("Phần mô hình kiếm sẽ được kéo dài. Để trống thì lấy đối tượng con đầu tiên.")]
+    [SerializeField] private Transform model;
+
     private static readonly Collider[] OverlapBuffer = new Collider[24];
 
     private readonly Dictionary<Damageable, float> hitTimes = new Dictionary<Damageable, float>();
@@ -73,6 +89,12 @@ public class FlyingSword : MonoBehaviour
     private Vector3 lastSlotPosition;
     private bool hasLastSlot;
 
+    // Cảm giác tốc độ: 0 = dáng bình thường, 1 = đang lao hết tốc lực
+    private float speedFeel;
+    private float baseTrailWidth = 0.07f;
+    private float baseTrailTime = 0.22f;
+    private float currentStretch = 1f;
+
     /// <summary>Đàn kiếm sở hữu thanh kiếm này.</summary>
     public SwordSwarm Swarm { get; private set; }
 
@@ -88,8 +110,8 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Đang chờ tới giờ để lao đi.</summary>
     public bool HasScheduledStrike => scheduled;
 
-    /// <summary>Vị trí mũi kiếm trong thế giới.</summary>
-    public Vector3 Tip => transform.position + transform.forward * tipOffset;
+    /// <summary>Vị trí mũi kiếm trong thế giới (đã tính phần kéo dài khi đang lao).</summary>
+    public Vector3 Tip => transform.position + transform.forward * (tipOffset * currentStretch);
 
     /// <summary>Gọi một lần khi đàn kiếm sinh ra thanh kiếm này.</summary>
     public void Init(SwordSwarm swarm, int index)
@@ -97,7 +119,13 @@ public class FlyingSword : MonoBehaviour
         Swarm = swarm;
         Index = index;
         if (trail == null) trail = GetComponent<TrailRenderer>();
-        if (trail != null) trail.Clear();
+        if (model == null && transform.childCount > 0) model = transform.GetChild(0);
+        if (trail != null)
+        {
+            baseTrailWidth = trail.widthMultiplier;
+            baseTrailTime = trail.time;
+            trail.Clear();
+        }
     }
 
     /// <summary>Báo đội hình vừa đổi: bỏ vận tốc cũ của chỗ đứng để không bị giật.</summary>
@@ -154,6 +182,8 @@ public class FlyingSword : MonoBehaviour
         lastSlotPosition = slot.position;
         hasLastSlot = true;
 
+        UpdateSpeedFeel(dt);
+
         switch (Mode)
         {
             case SwordMode.Formation:
@@ -179,6 +209,21 @@ public class FlyingSword : MonoBehaviour
                 if ((slot.position - transform.position).sqrMagnitude < 0.35f * 0.35f)
                     Mode = SwordMode.Formation;
                 break;
+        }
+    }
+
+    /// <summary>Khi đang lao đi tấn công: vệt sáng rộng và dài hơn, thân kiếm kéo dài ra như vệt mờ chuyển động.</summary>
+    private void UpdateSpeedFeel(float dt)
+    {
+        float target = Mode == SwordMode.Strike ? 1f : 0f;
+        speedFeel = Mathf.Lerp(speedFeel, target, 1f - Mathf.Exp(-feelSharpness * dt));
+        currentStretch = Mathf.Lerp(1f, strikeStretch, speedFeel);
+
+        if (model != null) model.localScale = new Vector3(1f, 1f, currentStretch);
+        if (trail != null)
+        {
+            trail.widthMultiplier = Mathf.Lerp(baseTrailWidth, strikeTrailWidth, speedFeel);
+            trail.time = Mathf.Lerp(baseTrailTime, strikeTrailTime, speedFeel);
         }
     }
 
@@ -269,7 +314,7 @@ public class FlyingSword : MonoBehaviour
     private void CheckHits(float damage, bool oncePerFlight, float interval)
     {
         if (damage <= 0f) return;
-        Vector3 a = transform.position + transform.forward * tailOffset;
+        Vector3 a = transform.position + transform.forward * (tailOffset * currentStretch);
         Vector3 b = Tip;
         int n = Physics.OverlapCapsuleNonAlloc(a, b, hitRadius, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < n; i++)
@@ -288,6 +333,9 @@ public class FlyingSword : MonoBehaviour
             info.point = OverlapBuffer[i].ClosestPoint(b);
             info.direction = dir;
             d.TakeDamage(info);
+
+            // Nhát chém tấn công (không phải chạm nhẹ của đội hình Vòng) thì có dừng hình và rung camera
+            if (oncePerFlight) Swarm.NotifyStrikeHit(d);
         }
     }
 }
