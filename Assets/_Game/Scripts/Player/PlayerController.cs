@@ -4,6 +4,7 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// Điều khiển nhân vật người chơi: đi bộ, chạy, nhảy bằng CharacterController.
 /// Hướng đi tính theo hướng camera (xem CameraOrbit): bấm W là đi về phía camera đang nhìn.
+/// Có thể bị khóa (chết) hoặc khóa đi bộ (đang đánh quyền cước), và có thể được đẩy tới trước (bước nhẹ khi đánh).
 /// Mọi con số có thể chỉnh trong Inspector mà không cần sửa code.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
@@ -15,7 +16,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Tốc độ di chuyển")]
     [Tooltip("Tốc độ đi bộ, tính bằng mét/giây.")]
-    [SerializeField, Min(0f)] private float walkSpeed = 4.5f;
+    [SerializeField, Min(0f)] private float walkSpeed = 3f;
 
     [Tooltip("Tốc độ chạy khi giữ phím Shift, tính bằng mét/giây.")]
     [SerializeField, Min(0f)] private float runSpeed = 8f;
@@ -26,7 +27,7 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Tốc độ xoay thân người về hướng đang đi, tính bằng độ/giây. Số lớn = quay nhanh.")]
     [SerializeField, Min(0f)] private float turnSpeed = 720f;
 
-    [Tooltip("Tốc độ xoay thân người về hướng camera khi đang bắn kiếm, tính bằng độ/giây. Số lớn để kiếm bay đúng hướng nhìn gần như ngay.")]
+    [Tooltip("Tốc độ xoay thân người về hướng camera khi đang bắn kiếm hoặc đánh, tính bằng độ/giây. Số lớn để đòn đánh đúng hướng nhìn gần như ngay.")]
     [SerializeField, Min(0f)] private float aimTurnSpeed = 1080f;
 
     [Header("Nhảy và rơi")]
@@ -53,6 +54,8 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity;
     private float lastGroundedTime = -100f;
     private float lastJumpPressedTime = -100f;
+    private Vector3 lungeVelocity;
+    private float lungeEndTime;
 
     /// <summary>Nhân vật đang chạm đất không.</summary>
     public bool IsGrounded { get; private set; }
@@ -65,6 +68,15 @@ public class PlayerController : MonoBehaviour
     /// Do SwordSwarm điều khiển.
     /// </summary>
     public bool FaceCamera { get; set; }
+
+    /// <summary>Bật khi đang đánh quyền cước: thân người quay mặt theo camera. Do PlayerMelee điều khiển.</summary>
+    public bool FaceCameraForAttack { get; set; }
+
+    /// <summary>Khóa hoàn toàn điều khiển (đi, nhảy). Dùng khi chết.</summary>
+    public bool ControlLocked { get; set; }
+
+    /// <summary>Khóa đi bằng W/A/S/D nhưng vẫn nhảy được. Dùng khi đang đánh quyền cước.</summary>
+    public bool MoveLocked { get; set; }
 
     /// <summary>Tốc độ di chuyển ngang hiện tại (mét/giây). Animator dùng để chọn Đứng/Đi/Chạy.</summary>
     public float HorizontalSpeed => new Vector2(horizontalVelocity.x, horizontalVelocity.z).magnitude;
@@ -82,9 +94,10 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        Vector2 input = ReadMoveInput();
+        bool moveBlocked = ControlLocked || MoveLocked;
+        Vector2 input = moveBlocked ? Vector2.zero : ReadMoveInput();
         Keyboard kb = Keyboard.current;
-        IsRunning = kb != null && kb.leftShiftKey.isPressed;
+        IsRunning = !moveBlocked && kb != null && kb.leftShiftKey.isPressed;
 
         // Hướng di chuyển tính theo hướng nhìn ngang của camera
         float yaw = cameraOrbit != null ? cameraOrbit.Yaw : transform.eulerAngles.y;
@@ -92,11 +105,32 @@ public class PlayerController : MonoBehaviour
         moveDir = Vector3.ClampMagnitude(moveDir, 1f);
 
         UpdateHorizontal(moveDir);
-        UpdateVertical(kb);
+        UpdateVertical(ControlLocked ? null : kb);
 
         Vector3 velocity = horizontalVelocity + Vector3.up * verticalVelocity;
+        if (Time.time < lungeEndTime) velocity += lungeVelocity;
         controller.Move(velocity * Time.deltaTime);
         IsGrounded = controller.isGrounded;
+    }
+
+    /// <summary>Đẩy nhân vật bước tới theo hướng direction một đoạn distance (mét) trong duration giây. Dùng khi đánh quyền cước.</summary>
+    public void Lunge(Vector3 direction, float distance, float duration)
+    {
+        if (duration <= 0.01f) return;
+        direction.y = 0f;
+        lungeVelocity = direction.normalized * (distance / duration);
+        lungeEndTime = Time.time + duration;
+    }
+
+    /// <summary>Đặt nhân vật về một vị trí (hồi sinh), xóa mọi vận tốc.</summary>
+    public void TeleportTo(Vector3 position, Quaternion rotation)
+    {
+        controller.enabled = false;
+        transform.SetPositionAndRotation(position, rotation);
+        controller.enabled = true;
+        horizontalVelocity = Vector3.zero;
+        verticalVelocity = 0f;
+        lungeEndTime = 0f;
     }
 
     /// <summary>Đọc phím W/A/S/D (và phím mũi tên) thành vector 2 chiều.</summary>
@@ -122,9 +156,9 @@ public class PlayerController : MonoBehaviour
         float accel = IsGrounded ? acceleration : acceleration * airControl;
         horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, targetVelocity, accel * Time.deltaTime);
 
-        if (FaceCamera && cameraOrbit != null)
+        if ((FaceCamera || FaceCameraForAttack) && cameraOrbit != null)
         {
-            // Đang bắn: quay mặt theo hướng camera nhìn
+            // Đang bắn/đánh: quay mặt theo hướng camera nhìn
             Quaternion aimRotation = Quaternion.Euler(0f, cameraOrbit.Yaw, 0f);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, aimRotation, aimTurnSpeed * Time.deltaTime);
         }

@@ -84,6 +84,20 @@ public class FlyingSword : MonoBehaviour
     private float scheduledSpeed;
     private float scheduledDamage;
     private float scheduledReturnTime;
+    private float scheduledIntent;
+    private float strikeIntent;
+
+    // Chế độ đón cầu: kiếm tạm rời chỗ trong đội hình để chắn đường một quả cầu địch
+    private bool guarding;
+    private Vector3 guardPosition;
+    private Quaternion guardRotation;
+    private float guardUntil;
+    private float guardSettleTime = 0.12f;
+
+    // Rung nhẹ khi chặn được cầu (chỉ rung phần hình ảnh)
+    private float shakeAmplitude;
+    private float shakeEndTime;
+    private float shakeDuration = 0.25f;
 
     // Để tính vận tốc của chỗ đứng trong đội hình
     private Vector3 lastSlotPosition;
@@ -142,7 +156,7 @@ public class FlyingSword : MonoBehaviour
     }
 
     /// <summary>Hẹn giờ lao tới điểm aimPoint (kiếm vẫn đứng trong đội hình cho tới giờ).</summary>
-    public void ScheduleStrike(float launchTime, Vector3 aimPoint, float overshoot, float speed, float damage, float returnTime)
+    public void ScheduleStrike(float launchTime, Vector3 aimPoint, float overshoot, float speed, float damage, float returnTime, float intentGain = 0f)
     {
         scheduled = true;
         scheduledTime = launchTime;
@@ -151,18 +165,64 @@ public class FlyingSword : MonoBehaviour
         scheduledSpeed = speed;
         scheduledDamage = damage;
         scheduledReturnTime = returnTime;
+        scheduledIntent = intentGain;
     }
 
-    /// <summary>Lao thẳng từ vị trí hiện tại tới điểm end với tốc độ speed.</summary>
-    public void LaunchStrike(Vector3 end, float speed, float damage, float returnTime)
+    /// <summary>Lao thẳng từ vị trí hiện tại tới điểm end với tốc độ speed. intentGain là Kiếm ý nhận được khi trúng.</summary>
+    public void LaunchStrike(Vector3 end, float speed, float damage, float returnTime, float intentGain = 0f)
     {
         scheduled = false;
+        guarding = false;
         Mode = SwordMode.Strike;
         strikeEnd = end;
         strikeSpeed = speed;
         strikeDamage = damage;
+        strikeIntent = intentGain;
         returnSettleTime = returnTime;
         hitTimes.Clear();
+    }
+
+    /// <summary>Đang tạm rời đội hình để đón một quả cầu địch.</summary>
+    public bool IsGuarding => guarding && Time.time < guardUntil;
+
+    /// <summary>Bán kính vùng chạm quanh thân kiếm (mét).</summary>
+    public float HitRadius => hitRadius;
+
+    /// <summary>Cho kiếm bay ra vị trí pos, mũi hướng theo rot, chờ tối đa hold giây để chắn cầu.</summary>
+    public void SetGuard(Vector3 pos, Quaternion rot, float hold, float settleTime)
+    {
+        guarding = true;
+        guardPosition = pos;
+        guardRotation = rot;
+        guardUntil = Time.time + hold;
+        guardSettleTime = settleTime;
+    }
+
+    /// <summary>Thôi đón cầu, về lại chỗ trong đội hình.</summary>
+    public void ClearGuard()
+    {
+        guarding = false;
+    }
+
+    /// <summary>Làm kiếm rung nhẹ (phần hình ảnh) trong duration giây, biên độ amplitude mét.</summary>
+    public void Shake(float amplitude, float duration)
+    {
+        shakeAmplitude = amplitude;
+        shakeDuration = Mathf.Max(0.02f, duration);
+        shakeEndTime = Time.time + shakeDuration;
+    }
+
+    /// <summary>Thân kiếm (đoạn từ đuôi chuôi tới mũi) có chạm quả cầu tâm center bán kính radius không? closest là điểm gần nhất trên thân kiếm.</summary>
+    public bool OverlapsSphere(Vector3 center, float radius, out Vector3 closest)
+    {
+        Vector3 a = transform.position + transform.forward * (tailOffset * currentStretch);
+        Vector3 b = Tip;
+        Vector3 ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        float t = len2 > 0.0001f ? Mathf.Clamp01(Vector3.Dot(center - a, ab) / len2) : 0f;
+        closest = a + ab * t;
+        float r = hitRadius + radius;
+        return (center - closest).sqrMagnitude <= r * r;
     }
 
     /// <summary>Bay về chỗ trong đội hình, mất khoảng settleTime giây để yên vị.</summary>
@@ -193,6 +253,13 @@ public class FlyingSword : MonoBehaviour
                     StepStrike(dt);
                     break;
                 }
+                if (IsGuarding)
+                {
+                    // Đang đón cầu: bay thật nhanh ra điểm chắn, mũi hướng về phía cầu
+                    SpringTo(guardPosition, Vector3.zero, guardSettleTime, dt);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, guardRotation, 1f - Mathf.Exp(-30f * dt));
+                    break;
+                }
                 SpringTo(slot.position, slotVelocity, Swarm.FormationSettleTime, dt);
                 Orient(slot.rotation, slotVelocity, dt);
                 if (Swarm.ActiveFormation.ContactDamage)
@@ -219,7 +286,17 @@ public class FlyingSword : MonoBehaviour
         speedFeel = Mathf.Lerp(speedFeel, target, 1f - Mathf.Exp(-feelSharpness * dt));
         currentStretch = Mathf.Lerp(1f, strikeStretch, speedFeel);
 
-        if (model != null) model.localScale = new Vector3(1f, 1f, currentStretch);
+        if (model != null)
+        {
+            model.localScale = new Vector3(1f, 1f, currentStretch);
+            // Rung nhẹ khi chặn cầu: lệch ngẫu nhiên, tắt dần
+            if (Time.time < shakeEndTime)
+            {
+                float fade = (shakeEndTime - Time.time) / shakeDuration;
+                model.localPosition = Random.insideUnitSphere * (shakeAmplitude * fade);
+            }
+            else if (model.localPosition.sqrMagnitude > 0f) model.localPosition = Vector3.zero;
+        }
         if (trail != null)
         {
             trail.widthMultiplier = Mathf.Lerp(baseTrailWidth, strikeTrailWidth, speedFeel);
@@ -233,7 +310,7 @@ public class FlyingSword : MonoBehaviour
         Vector3 to = scheduledAim - transform.position;
         float len = to.magnitude;
         Vector3 dir = len > 0.01f ? to / len : transform.forward;
-        LaunchStrike(scheduledAim + dir * scheduledOvershoot, scheduledSpeed, scheduledDamage, scheduledReturnTime);
+        LaunchStrike(scheduledAim + dir * scheduledOvershoot, scheduledSpeed, scheduledDamage, scheduledReturnTime, scheduledIntent);
     }
 
     /// <summary>Lò xo giảm chấn: kéo kiếm tới target, theo kịp chuyển động của chỗ đứng. Độc lập với FPS.</summary>
@@ -335,7 +412,7 @@ public class FlyingSword : MonoBehaviour
             d.TakeDamage(info);
 
             // Nhát chém tấn công (không phải chạm nhẹ của đội hình Vòng) thì có dừng hình và rung camera
-            if (oncePerFlight) Swarm.NotifyStrikeHit(d);
+            if (oncePerFlight) Swarm.NotifyStrikeHit(d, strikeIntent);
         }
     }
 }

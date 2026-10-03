@@ -17,11 +17,12 @@ public enum FormationType
 /// Đàn phi kiếm của người chơi: sinh ra các thanh kiếm, xếp chúng theo đội hình, và điều khiển việc phóng kiếm.
 /// Phím 1/2/3 đổi đội hình Quạt/Vòng/Mũi tên. Chuột trái phóng một kiếm về tâm ngắm (giữ = bắn liên tiếp).
 /// Phím 3 lao cả đàn vào mục tiêu gần tâm ngắm nhất rồi thu về. Phím R gọi toàn bộ kiếm về.
-/// Đổi "Số kiếm" trong Inspector ngay lúc đang Play để thấy đội hình tự giãn ra.
+/// Số kiếm tối đa lấy từ Thần thức (cảnh giới) trong PlayerStats. Mỗi hành động tốn pháp lực.
+/// Quạt tự chặn cầu từ phía sau/hai bên, Vòng chặn cầu chạm trúng kiếm. Kiếm đang bay đi thì không chặn được.
 /// </summary>
 public class SwordSwarm : MonoBehaviour
 {
-    private const int MaxSwords = 60;
+    private const int MaxSwords = 100;
 
     [Header("Tham chiếu")]
     [Tooltip("Prefab phi kiếm (ThanhTrucKiem). Phải có script FlyingSword ở gốc.")]
@@ -33,6 +34,9 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Script điều khiển nhân vật, để quay mặt theo hướng camera lúc bắn. Có thể để trống.")]
     [SerializeField] private PlayerController player;
 
+    [Tooltip("Tài nguyên người chơi: Thần thức (số kiếm tối đa), pháp lực, Kiếm ý. Để trống thì không giới hạn và không tốn pháp lực.")]
+    [SerializeField] private PlayerStats stats;
+
     [Tooltip("Camera dùng để ngắm. Để trống thì dùng camera chính.")]
     [SerializeField] private Camera aimCamera;
 
@@ -40,7 +44,7 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField] private HitFeedback hitFeedback;
 
     [Header("Số kiếm")]
-    [Tooltip("Số phi kiếm đang dùng. Đổi lúc đang Play (ví dụ 3 → 9 → 24) để xem đội hình tự giãn ra. Sau này sẽ bị giới hạn bởi Thần thức.")]
+    [Tooltip("Số phi kiếm đang dùng. Không thể vượt quá Thần thức của cảnh giới hiện tại (PlayerStats). Đổi cảnh giới (F4/F5) thì số kiếm tự đặt về mức tối đa mới.")]
     [SerializeField, Range(0, MaxSwords)] private int swordCount = 9;
 
     [Header("Đội hình")]
@@ -65,6 +69,26 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField] private FanFormation fan = new FanFormation();
     [SerializeField] private RingFormation ring = new RingFormation();
     [SerializeField] private ArrowFormation arrow = new ArrowFormation();
+
+    [Header("Tiêu hao pháp lực")]
+    [Tooltip("Pháp lực tốn cho mỗi lần phóng một kiếm (chuột trái).")]
+    [SerializeField, Min(0f)] private float singleShotCost = 4f;
+
+    [Tooltip("Pháp lực tốn cho MỖI kiếm trong loạt Mũi tên (phím 3).")]
+    [SerializeField, Min(0f)] private float volleyCostPerSword = 3f;
+
+    [Tooltip("Pháp lực tốn mỗi lần đổi đội hình.")]
+    [SerializeField, Min(0f)] private float formationChangeCost = 5f;
+
+    [Tooltip("Pháp lực tốn mỗi giây khi đang ở đội hình Vòng. Cạn pháp lực thì tự về Quạt.")]
+    [SerializeField, Min(0f)] private float ringDrainPerSecond = 6f;
+
+    [Header("Kiếm ý")]
+    [Tooltip("Kiếm ý nhận được khi một nhát kiếm bắn lẻ trúng mục tiêu.")]
+    [SerializeField, Min(0f)] private float singleHitIntent = 2f;
+
+    [Tooltip("Kiếm ý nhận được cho MỖI kiếm trong loạt Mũi tên trúng mục tiêu.")]
+    [SerializeField, Min(0f)] private float volleyHitIntent = 1f;
 
     [Header("Bắn lẻ (chuột trái)")]
     [Tooltip("Tốc độ kiếm lao đi khi bắn lẻ (mét/giây). Số lớn = vút nhanh hơn.")]
@@ -129,6 +153,37 @@ public class SwordSwarm : MonoBehaviour
     [Tooltip("Phần vận tốc giữ lại khi kiếm bắt đầu quay về (0 = dừng khựng rồi bay về, 1 = giữ nguyên đà). Số nhỏ cho kiếm quay đầu gọn.")]
     [SerializeField, Range(0f, 1f)] private float returnVelocityKeep = 0.15f;
 
+    [Header("Chặn cầu (phòng thủ)")]
+    [Tooltip("Bật/tắt khả năng chặn cầu của Quạt và Vòng.")]
+    [SerializeField] private bool defenseEnabled = true;
+
+    [Tooltip("Cung phía sau lưng mà Quạt chặn được (độ). 160 nghĩa là 80 độ mỗi bên so với hướng thẳng sau lưng. Cầu tới từ phía trước thì không chặn.")]
+    [SerializeField, Range(10f, 360f)] private float fanBlockArc = 160f;
+
+    [Tooltip("Khi cầu vào trong khoảng này (mét), Quạt cử một thanh kiếm ra đón đường.")]
+    [SerializeField, Min(1f)] private float guardDetectRange = 8f;
+
+    [Tooltip("Thanh kiếm đón đường đứng cách điểm neo bao xa theo hướng cầu tới (mét).")]
+    [SerializeField, Min(0.5f)] private float guardDistance = 1.5f;
+
+    [Tooltip("Thời gian kiếm bay ra vị trí đón (giây). Số nhỏ = ra rất nhanh.")]
+    [SerializeField, Min(0.03f)] private float guardSettleTime = 0.12f;
+
+    [Tooltip("Kiếm đón đường chờ tối đa bao lâu (giây) rồi mới về chỗ nếu cầu không tới.")]
+    [SerializeField, Min(0.1f)] private float guardHoldTime = 1f;
+
+    [Tooltip("Độ rung của kiếm khi chặn được một quả cầu (mét).")]
+    [SerializeField, Min(0f)] private float blockShake = 0.12f;
+
+    [Tooltip("Thời gian kiếm rung sau khi chặn (giây).")]
+    [SerializeField, Min(0.05f)] private float blockShakeTime = 0.25f;
+
+    [Tooltip("Hệ hạt tia lửa phát ra khi chặn được cầu.")]
+    [SerializeField] private ParticleSystem blockSparks;
+
+    [Tooltip("Số tia lửa mỗi lần chặn.")]
+    [SerializeField, Min(0)] private int blockSparkCount = 16;
+
     private readonly List<FlyingSword> swords = new List<FlyingSword>();
     private readonly List<FlyingSword> temp = new List<FlyingSword>();
     private readonly RaycastHit[] rayHits = new RaycastHit[32];
@@ -146,6 +201,8 @@ public class SwordSwarm : MonoBehaviour
     public float ReturnVelocityKeep => returnVelocityKeep;
     public float RingContactDamage => ringContactDamage;
     public float ContactHitInterval => contactHitInterval;
+    public float SingleHitIntent => singleHitIntent;
+    public float VolleyHitIntent => volleyHitIntent;
 
     /// <summary>Đội hình đang dùng.</summary>
     public FormationType CurrentFormation => current;
@@ -153,15 +210,30 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Đội hình đang dùng ở dạng giao diện IFormation.</summary>
     public IFormation ActiveFormation => GetFormation(current);
 
-    /// <summary>Số kiếm mong muốn (có thể gán lúc đang chạy).</summary>
+    /// <summary>Giới hạn số kiếm hiện tại: Thần thức của cảnh giới (nếu có PlayerStats), nếu không thì mức cứng.</summary>
+    public int SwordCap => stats != null ? stats.MaxSwords : MaxSwords;
+
+    /// <summary>Số kiếm mong muốn (có thể gán lúc đang chạy). Luôn bị giới hạn bởi Thần thức.</summary>
     public int SwordCount
     {
         get => swordCount;
-        set => swordCount = Mathf.Clamp(value, 0, MaxSwords);
+        set => swordCount = Mathf.Clamp(value, 0, SwordCap);
     }
 
     /// <summary>Số kiếm đang tồn tại thực tế.</summary>
     public int ActualSwordCount => swords.Count;
+
+    /// <summary>Số kiếm đang sẵn sàng trong đội hình (chưa bay đi tấn công hay đang thu về). HUD hiện "Kiếm: sẵn sàng/tổng".</summary>
+    public int ReadySwordCount
+    {
+        get
+        {
+            int n = 0;
+            for (int i = 0; i < swords.Count; i++)
+                if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike) n++;
+            return n;
+        }
+    }
 
     /// <summary>Danh sách kiếm (chỉ đọc).</summary>
     public IReadOnlyList<FlyingSword> Swords => swords;
@@ -173,7 +245,7 @@ public class SwordSwarm : MonoBehaviour
     public event System.Action StrikeFired;
 
     /// <summary>Điểm neo hiện tại của đội hình trong thế giới.</summary>
-    private Vector3 AnchorPosition => anchor != null ? anchor.position : owner.position + Vector3.up * anchorHeight;
+    public Vector3 AnchorPosition => anchor != null ? anchor.position : owner.position + Vector3.up * anchorHeight;
 
     /// <summary>Điểm đang ngắm trong thế giới (nơi tia từ giữa màn hình chạm vào).</summary>
     public Vector3 AimPoint { get; private set; }
@@ -189,32 +261,83 @@ public class SwordSwarm : MonoBehaviour
     private void OnValidate()
     {
         swordCount = Mathf.Clamp(swordCount, 0, MaxSwords);
+        if (stats != null) swordCount = Mathf.Min(swordCount, stats.MaxSwords);
     }
 
     private void Awake()
     {
         current = startFormation;
         if (owner == null) owner = transform;
+        if (stats != null) swordCount = Mathf.Min(swordCount, stats.MaxSwords);
+        if (blockSparks != null) blockSparks.Play();   // đã tắt phát liên tục, chỉ phát khi gọi Emit
+    }
+
+    private void OnEnable()
+    {
+        if (stats != null)
+        {
+            stats.RealmChanged += OnRealmChanged;
+            stats.Respawned += OnPlayerRespawned;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (stats != null)
+        {
+            stats.RealmChanged -= OnRealmChanged;
+            stats.Respawned -= OnPlayerRespawned;
+        }
+    }
+
+    /// <summary>Đổi cảnh giới: bầy kiếm đầy theo Thần thức mới.</summary>
+    private void OnRealmChanged(RealmData realm)
+    {
+        swordCount = Mathf.Clamp(realm.MaxSwords, 0, MaxSwords);
+    }
+
+    private void OnPlayerRespawned()
+    {
+        pendingVolleyTime = -1f;
+        RecallAll();
     }
 
     private void Update()
     {
-        HandleInput();
+        bool alive = stats == null || stats.IsAlive;
+        if (alive) HandleInput();
         UpdateAim();
 
-        if (pendingVolleyTime > 0f && Time.time >= pendingVolleyTime)
+        if (alive && pendingVolleyTime > 0f && Time.time >= pendingVolleyTime)
         {
             pendingVolleyTime = -1f;
             if (current == FormationType.Arrow) FireVolley();
         }
 
-        if (player != null) player.FaceCamera = Time.time < aimUntil;
+        // Đội hình Vòng tốn pháp lực mỗi giây; cạn thì tự về Quạt
+        if (alive && current == FormationType.Ring && stats != null && ringDrainPerSecond > 0f)
+        {
+            if (!stats.DrainMana(ringDrainPerSecond * Time.deltaTime))
+            {
+                stats.ReportManaShortage();
+                SetFormation(FormationType.Fan);
+            }
+        }
+
+        if (player != null) player.FaceCamera = alive && Time.time < aimUntil;
     }
 
     private void LateUpdate()
     {
+        // Giới hạn Thần thức: ô "Số kiếm" trong Inspector không vượt quá mức tối đa
+        int cap = SwordCap;
+        if (swordCount > cap) swordCount = cap;
+
         SyncSwordCount();
         if (swords.Count == 0 || owner == null) return;
+
+        float dt = Mathf.Min(Time.deltaTime, 0.05f);
+        if (defenseEnabled) UpdateDefense();
 
         FormationContext ctx;
         ctx.origin = AnchorPosition;
@@ -222,7 +345,6 @@ public class SwordSwarm : MonoBehaviour
         ctx.time = Time.time;
 
         IFormation formation = ActiveFormation;
-        float dt = Mathf.Min(Time.deltaTime, 0.05f);
         int count = swords.Count;
         for (int i = 0; i < count; i++)
         {
@@ -240,8 +362,8 @@ public class SwordSwarm : MonoBehaviour
 
         if (kb != null)
         {
-            if (kb.digit1Key.wasPressedThisFrame) SetFormation(FormationType.Fan);
-            if (kb.digit2Key.wasPressedThisFrame) SetFormation(FormationType.Ring);
+            if (kb.digit1Key.wasPressedThisFrame) TryChangeFormation(FormationType.Fan);
+            if (kb.digit2Key.wasPressedThisFrame) TryChangeFormation(FormationType.Ring);
             if (kb.digit3Key.wasPressedThisFrame) OnArrowKey();
             if (kb.rKey.wasPressedThisFrame) RecallAll();
         }
@@ -260,7 +382,7 @@ public class SwordSwarm : MonoBehaviour
     {
         if (current != FormationType.Arrow)
         {
-            SetFormation(FormationType.Arrow);
+            if (!TryChangeFormation(FormationType.Arrow)) return;
             if (volleyOnKey3) pendingVolleyTime = Time.time + formationSettleTime * 0.75f;
         }
         else
@@ -271,19 +393,33 @@ public class SwordSwarm : MonoBehaviour
 
     // ================= Công khai (UI, kiểm thử) =================
 
-    /// <summary>Đổi đội hình. Kiếm bay sang chỗ mới trong khoảng "Thời gian đổi đội hình".</summary>
+    /// <summary>Đổi đội hình có tốn pháp lực. Không đủ thì không đổi. Cùng đội hình thì không làm gì.</summary>
+    public bool TryChangeFormation(FormationType type)
+    {
+        if (type == current) return false;
+        if (stats != null && !stats.TrySpendMana(formationChangeCost)) return false;
+        SetFormation(type);
+        return true;
+    }
+
+    /// <summary>Đổi đội hình không tốn pháp lực (dùng nội bộ và để kiểm thử). Kiếm bay sang chỗ mới trong "Thời gian đổi đội hình".</summary>
     public void SetFormation(FormationType type)
     {
         pendingVolleyTime = -1f;
         if (type == current) return;
         current = type;
-        for (int i = 0; i < swords.Count; i++) swords[i].OnFormationChanged();
+        for (int i = 0; i < swords.Count; i++)
+        {
+            swords[i].ClearGuard();
+            swords[i].OnFormationChanged();
+        }
         FormationChanged?.Invoke(type);
     }
 
-    /// <summary>FlyingSword gọi khi một nhát chém (bắn lẻ hoặc loạt Mũi tên) trúng mục tiêu: dừng hình và rung camera.</summary>
-    public void NotifyStrikeHit(Damageable target)
+    /// <summary>FlyingSword gọi khi một nhát chém trúng mục tiêu: cộng Kiếm ý, dừng hình và rung camera.</summary>
+    public void NotifyStrikeHit(Damageable target, float intentGain)
     {
+        if (stats != null) stats.AddSwordIntent(intentGain);
         if (hitFeedback != null) hitFeedback.OnHit(!target.IsAlive);
     }
 
@@ -294,28 +430,36 @@ public class SwordSwarm : MonoBehaviour
         for (int i = 0; i < swords.Count; i++)
         {
             FlyingSword s = swords[i];
+            s.ClearGuard();
             if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike) continue;
             s.CancelAndBeginReturn(recallTime);
         }
     }
 
-    /// <summary>Phóng một thanh kiếm về tâm ngắm rồi tự quay về. Trả về false nếu không có kiếm rảnh.</summary>
+    /// <summary>Phóng một thanh kiếm về tâm ngắm rồi tự quay về. Trả về false nếu không có kiếm rảnh hoặc không đủ pháp lực.</summary>
     public bool FireSingle()
     {
         FlyingSword s = PickShooter();
         if (s == null) return false;
 
+        if (stats != null && !stats.TrySpendMana(singleShotCost))
+        {
+            nextFireTime = Time.time + 0.35f;   // đừng báo thiếu pháp lực mỗi khung hình khi đang giữ chuột
+            return false;
+        }
+
         Vector3 end = AimTarget != null ? AimTarget.AimPoint : AimPoint;
         Vector3 to = end - s.transform.position;
         Vector3 dir = to.sqrMagnitude > 0.0001f ? to.normalized : s.transform.forward;
-        s.LaunchStrike(end + dir * shotOvershoot, shotSpeed, strikeDamage, shotReturnTime);
+        s.ClearGuard();
+        s.LaunchStrike(end + dir * shotOvershoot, shotSpeed, strikeDamage, shotReturnTime, singleHitIntent);
 
         aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
         StrikeFired?.Invoke();
         return true;
     }
 
-    /// <summary>Lao cả đàn (các kiếm đang rảnh) vào mục tiêu gần tâm ngắm nhất, mỗi kiếm cách nhau một chút. Sau đó thu về.</summary>
+    /// <summary>Lao cả đàn (các kiếm đang rảnh) vào mục tiêu gần tâm ngắm nhất, mỗi kiếm cách nhau một chút. Sau đó thu về. Tốn pháp lực theo số kiếm.</summary>
     public bool FireVolley()
     {
         temp.Clear();
@@ -326,15 +470,112 @@ public class SwordSwarm : MonoBehaviour
         }
         if (temp.Count == 0) return false;
 
+        if (stats != null && !stats.TrySpendMana(volleyCostPerSword * temp.Count)) return false;
+
         Damageable target = FindTarget(volleyLockAngle, volleyRange);
         Vector3 aim = target != null ? target.AimPoint : AimPoint;
 
         for (int k = 0; k < temp.Count; k++)
-            temp[k].ScheduleStrike(Time.time + k * volleyInterval, aim, volleyOvershoot, volleySpeed, volleyDamage, volleyReturnTime);
+        {
+            temp[k].ClearGuard();
+            temp[k].ScheduleStrike(Time.time + k * volleyInterval, aim, volleyOvershoot, volleySpeed, volleyDamage, volleyReturnTime, volleyHitIntent);
+        }
 
         aimUntil = Mathf.Max(aimUntil, Time.time + temp.Count * volleyInterval + aimHoldTime);
         StrikeFired?.Invoke();
         return true;
+    }
+
+    // ================= Chặn cầu =================
+
+    /// <summary>Vị trí pos có nằm trong cung phía sau lưng (fanBlockArc độ) của nhân vật không.</summary>
+    private bool InRearArc(Vector3 pos)
+    {
+        Vector3 rel = pos - owner.position;
+        rel.y = 0f;
+        if (rel.sqrMagnitude < 0.01f) return true;
+        Vector3 back = -owner.forward;
+        back.y = 0f;
+        return Vector3.Angle(back, rel) <= fanBlockArc * 0.5f;
+    }
+
+    /// <summary>
+    /// Mỗi khung hình: với từng quả cầu địch, nếu đội hình cho phép thì cử kiếm ra đón (Quạt) và kiểm tra va chạm với kiếm đang ở đội hình.
+    /// Kiếm đang phóng đi/thu về/hẹn giờ lao thì không tham gia chặn.
+    /// </summary>
+    private void UpdateDefense()
+    {
+        List<EnemyOrb> orbs = EnemyOrb.All;
+        if (orbs.Count == 0 || owner == null) return;
+        if (current == FormationType.Arrow) return;
+
+        Vector3 center = AnchorPosition;
+        for (int o = orbs.Count - 1; o >= 0; o--)
+        {
+            EnemyOrb orb = orbs[o];
+            if (orb == null || orb.IsDone) continue;
+            Vector3 op = orb.Position;
+
+            if (current == FormationType.Fan)
+            {
+                if (!InRearArc(op)) continue;   // cầu từ phía trước: không chặn
+                if (!orb.HasGuard && orb.IsApproaching(center) && (op - center).sqrMagnitude < guardDetectRange * guardDetectRange)
+                    AssignGuard(orb, center);
+            }
+
+            for (int i = 0; i < swords.Count; i++)
+            {
+                FlyingSword s = swords[i];
+                if (s.Mode != SwordMode.Formation || s.HasScheduledStrike) continue;
+                Vector3 closest;
+                if (s.OverlapsSphere(op, orb.Radius, out closest))
+                {
+                    BlockOrb(orb, s, closest);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Chọn thanh kiếm rảnh gần điểm đón nhất và cho nó bay ra chắn đường cầu.</summary>
+    private void AssignGuard(EnemyOrb orb, Vector3 center)
+    {
+        Vector3 dir = (orb.Position - center).normalized;
+        Vector3 guardPoint = center + dir * guardDistance;
+
+        FlyingSword best = null;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < swords.Count; i++)
+        {
+            FlyingSword s = swords[i];
+            if (s.Mode != SwordMode.Formation || s.HasScheduledStrike || s.IsGuarding) continue;
+            float d = (s.transform.position - guardPoint).sqrMagnitude;
+            if (d < bestDist) { bestDist = d; best = s; }
+        }
+        if (best == null) return;   // hết kiếm rảnh: lưng trống
+
+        Vector3 up = Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.95f ? Vector3.forward : Vector3.up;
+        best.SetGuard(guardPoint, Quaternion.LookRotation(dir, up), guardHoldTime, guardSettleTime);
+        orb.HasGuard = true;
+    }
+
+    /// <summary>Cầu bị kiếm chặn: tia lửa, kiếm rung nhẹ, hủy cầu.</summary>
+    private void BlockOrb(EnemyOrb orb, FlyingSword sword, Vector3 point)
+    {
+        orb.Block();
+        sword.ClearGuard();
+        sword.Shake(blockShake, blockShakeTime);
+        EmitBlockSparks(point, (orb.Position - sword.transform.position).normalized);
+    }
+
+    /// <summary>Phát tia lửa tại điểm chặn.</summary>
+    public void EmitBlockSparks(Vector3 point, Vector3 normal)
+    {
+        if (blockSparks == null || blockSparkCount <= 0) return;
+        Transform t = blockSparks.transform;
+        t.position = point;
+        if (normal.sqrMagnitude > 0.0001f) t.rotation = Quaternion.LookRotation(normal);
+        blockSparks.Emit(blockSparkCount);
     }
 
     // ================= Nội bộ =================

@@ -1,42 +1,73 @@
+using Unity.Cinemachine;
 using UnityEngine;
 
 /// <summary>
-/// Tạo "lực" cho đòn đánh: dừng hình một khoảnh khắc và rung camera khi kiếm trúng mục tiêu.
+/// Tạo "lực" cho đòn đánh (kiếm lẫn quyền cước): dừng hình một khoảnh khắc và rung camera bằng Cinemachine Impulse.
 /// Hạ gục được địch thì dừng lâu hơn và rung mạnh hơn.
-/// SwordSwarm gọi <see cref="OnHit"/> mỗi khi một nhát chém trúng.
+/// SwordSwarm và PlayerMelee gọi <see cref="OnHit"/> mỗi khi một đòn trúng.
+/// Có công tắc riêng để tắt rung hoặc tắt dừng hình.
 /// </summary>
 public class HitFeedback : MonoBehaviour
 {
-    [Header("Tham chiếu")]
-    [Tooltip("Camera xoay bằng chuột (đối tượng CameraTarget) để rung. Có thể để trống thì không rung.")]
-    [SerializeField] private CameraOrbit cameraOrbit;
+    [Header("Công tắc")]
+    [Tooltip("Bật/tắt rung camera khi trúng đòn.")]
+    [SerializeField] private bool enableShake = true;
+
+    [Tooltip("Bật/tắt dừng hình khi trúng đòn.")]
+    [SerializeField] private bool enableHitStop = true;
+
+    [Header("Rung camera (Cinemachine Impulse)")]
+    [Tooltip("Nguồn phát rung. CinemachineCamera cần có thêm 'Cinemachine Impulse Listener' để nhận rung.")]
+    [SerializeField] private CinemachineImpulseSource impulseSource;
+
+    [Tooltip("Độ giật camera khi trúng đòn (mét). 0.04 là rung nhẹ.")]
+    [SerializeField, Min(0f)] private float hitShake = 0.04f;
+
+    [Tooltip("Độ giật camera khi hạ gục mục tiêu (mét). Mạnh hơn khi trúng thường.")]
+    [SerializeField, Min(0f)] private float killShake = 0.1f;
 
     [Header("Dừng hình khi trúng")]
-    [Tooltip("Thời gian dừng hình khi nhát chém trúng mục tiêu (giây, tính theo thời gian thật). 0 = tắt.")]
-    [SerializeField, Min(0f)] private float hitStopDuration = 0.05f;
+    [Tooltip("Thời gian dừng hình khi đòn trúng mục tiêu (giây, tính theo thời gian thật).")]
+    [SerializeField, Min(0f)] private float hitStopDuration = 0.04f;
 
-    [Tooltip("Thời gian dừng hình khi nhát chém hạ gục mục tiêu (giây).")]
-    [SerializeField, Min(0f)] private float killHitStopDuration = 0.1f;
+    [Tooltip("Thời gian dừng hình khi đòn hạ gục mục tiêu (giây).")]
+    [SerializeField, Min(0f)] private float killHitStopDuration = 0.08f;
 
     [Tooltip("Khoảng cách tối thiểu giữa hai lần dừng hình (giây). Tránh hình bị khựng liên tục khi cả loạt kiếm cùng trúng.")]
     [SerializeField, Min(0f)] private float hitStopMinInterval = 0.12f;
-
-    [Header("Rung camera")]
-    [Tooltip("Mức rung khi trúng đòn, từ 0 đến 1. 0.4 là rung nhẹ.")]
-    [SerializeField, Range(0f, 1f)] private float hitShake = 0.4f;
-
-    [Tooltip("Mức rung khi hạ gục mục tiêu, từ 0 đến 1.")]
-    [SerializeField, Range(0f, 1f)] private float killShake = 0.8f;
 
     private float hitStopEndTime;   // theo thời gian thật
     private float lastHitStopTime = -100f;
     private bool stopping;
 
-    /// <summary>Gọi khi một nhát chém trúng. killed = nhát này làm mục tiêu hết máu.</summary>
+    private void Awake()
+    {
+        ConfigureImpulse();
+    }
+
+    /// <summary>Đặt dạng xung rung: một cú giật ngắn rồi trở về (Bump), phát ở kênh 1 như Impulse Listener.</summary>
+    private void ConfigureImpulse()
+    {
+        if (impulseSource == null) return;
+        CinemachineImpulseDefinition def = impulseSource.ImpulseDefinition;
+        def.ImpulseChannel = 1;
+        def.ImpulseShape = CinemachineImpulseDefinition.ImpulseShapes.Bump;
+        def.ImpulseType = CinemachineImpulseDefinition.ImpulseTypes.Uniform;
+        def.ImpulseDuration = 0.22f;
+    }
+
+    /// <summary>Gọi khi một đòn trúng. killed = đòn này làm mục tiêu hết máu.</summary>
     public void OnHit(bool killed)
     {
-        if (cameraOrbit != null) cameraOrbit.AddShake(killed ? killShake : hitShake);
+        if (enableShake && impulseSource != null)
+        {
+            float amp = killed ? killShake : hitShake;
+            Vector3 dir = Random.onUnitSphere;
+            dir.z *= 0.3f;                                  // giật chủ yếu theo chiều ngang/dọc màn hình
+            impulseSource.GenerateImpulseWithVelocity(dir.normalized * amp);
+        }
 
+        if (!enableHitStop) return;
         float duration = killed ? killHitStopDuration : hitStopDuration;
         if (duration <= 0f) return;
 

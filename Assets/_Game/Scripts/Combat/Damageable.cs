@@ -53,6 +53,12 @@ public class Damageable : MonoBehaviour
     /// <summary>Báo khi được hồi sinh.</summary>
     public event Action<Damageable> Revived;
 
+    /// <summary>Báo khi bị đẩy lùi (tham số là độ dời trong thế giới).</summary>
+    public event Action<Vector3> KnockedBack;
+
+    /// <summary>Báo khi BẤT KỲ vật thể nào bị đánh trúng (HUD dùng để hiện số sát thương bay lên).</summary>
+    public static event Action<Damageable, DamageInfo> AnyDamaged;
+
     private void Awake()
     {
         Health = maxHealth;
@@ -96,7 +102,14 @@ public class Damageable : MonoBehaviour
         if (!IsAlive) return;
         Health = Mathf.Max(0f, Health - info.amount);
         Damaged?.Invoke(info);
+        AnyDamaged?.Invoke(this, info);
         if (Health <= 0f) Died?.Invoke(this);
+    }
+
+    /// <summary>Đẩy lùi vật thể một đoạn delta (mét) theo thế giới.</summary>
+    public void Knockback(Vector3 delta)
+    {
+        if (delta.sqrMagnitude > 0.0001f) KnockedBack?.Invoke(delta);
     }
 
     /// <summary>Hồi đầy máu và báo sự kiện hồi sinh.</summary>

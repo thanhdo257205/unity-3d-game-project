@@ -35,7 +35,25 @@ public class PlayerAnimator : MonoBehaviour
     [Tooltip("Thời gian ân hạn (giây) trước khi coi là 'không chạm đất'. Tránh anim rơi chớp nháy khi bước qua bậc thang hay dốc nhỏ.")]
     [SerializeField, Min(0f)] private float groundedGrace = 0.12f;
 
+    [Header("Bị đánh và chết")]
+    [Tooltip("Tài nguyên người chơi: phát anim Bị Đánh khi mất máu, anim Chết khi hết máu. Để trống thì tự tìm.")]
+    [SerializeField] private PlayerStats stats;
+
+    [Tooltip("Quyền cước: khi đang đánh thì tắt lớp thân trên để toàn thân phát anim đòn đánh. Để trống thì tự tìm.")]
+    [SerializeField] private PlayerMelee melee;
+
+    [Tooltip("Tên lớp Animator chỉ điều khiển thân trên (phóng kiếm, niệm quyết, bị đánh).")]
+    [SerializeField] private string upperLayerName = "UpperBody";
+
+    [Tooltip("Tốc độ bật/tắt lớp thân trên (đơn vị trọng số mỗi giây).")]
+    [SerializeField, Min(1f)] private float upperLayerBlendSpeed = 12f;
+
+    [Tooltip("Tên trạng thái Animator để quay về khi hồi sinh.")]
+    [SerializeField] private string idleState = "Locomotion";
+
     private static readonly int SpeedId = Animator.StringToHash("Speed");
+    private static readonly int HitId = Animator.StringToHash("Hit");
+    private static readonly int DieId = Animator.StringToHash("Die");
     private static readonly int AnimSpeedId = Animator.StringToHash("AnimSpeed");
     private static readonly int GroundedId = Animator.StringToHash("Grounded");
     private static readonly int VerticalSpeedId = Animator.StringToHash("VerticalSpeed");
@@ -43,6 +61,8 @@ public class PlayerAnimator : MonoBehaviour
     private static readonly int ShootId = Animator.StringToHash("Shoot");
     private static readonly int CastId = Animator.StringToHash("Cast");
 
+    private int upperLayer = -1;
+    private float upperWeight = 1f;
     private float smoothSpeed;
     private float speedVelocity;
     private float lastGroundedTime;
@@ -51,10 +71,20 @@ public class PlayerAnimator : MonoBehaviour
     {
         if (animator == null) animator = GetComponentInChildren<Animator>();
         if (player == null) player = GetComponent<PlayerController>();
+        if (stats == null) stats = GetComponent<PlayerStats>();
+        if (melee == null) melee = GetComponent<PlayerMelee>();
+        if (animator != null) upperLayer = animator.GetLayerIndex(upperLayerName);
+        upperWeight = 1f;
     }
 
     private void OnEnable()
     {
+        if (stats != null)
+        {
+            stats.Damaged += OnPlayerDamaged;
+            stats.Died += OnPlayerDied;
+            stats.Respawned += OnPlayerRespawned;
+        }
         if (player != null) player.Jumped += OnJumped;
         if (swarm != null)
         {
@@ -65,12 +95,46 @@ public class PlayerAnimator : MonoBehaviour
 
     private void OnDisable()
     {
+        if (stats != null)
+        {
+            stats.Damaged -= OnPlayerDamaged;
+            stats.Died -= OnPlayerDied;
+            stats.Respawned -= OnPlayerRespawned;
+        }
         if (player != null) player.Jumped -= OnJumped;
         if (swarm != null)
         {
             swarm.StrikeFired -= OnStrike;
             swarm.FormationChanged -= OnFormationChanged;
         }
+    }
+
+    // Bị đánh: chỉ phát anim nếu còn sống (nếu chết thì Died lo)
+    private void OnPlayerDamaged(float amount)
+    {
+        if (animator != null && stats != null && stats.IsAlive) animator.SetTrigger(HitId);
+    }
+
+    private void OnPlayerDied()
+    {
+        if (animator == null) return;
+        animator.ResetTrigger(HitId);
+        animator.ResetTrigger(ShootId);
+        animator.ResetTrigger(CastId);
+        animator.SetTrigger(DieId);
+    }
+
+    // Hồi sinh: xóa mọi trigger còn treo và quay về đứng yên
+    private void OnPlayerRespawned()
+    {
+        if (animator == null) return;
+        animator.ResetTrigger(DieId);
+        animator.ResetTrigger(HitId);
+        animator.ResetTrigger(ShootId);
+        animator.ResetTrigger(CastId);
+        animator.ResetTrigger(JumpId);
+        animator.CrossFadeInFixedTime(idleState, 0.1f, 0);
+        smoothSpeed = 0f;
     }
 
     private void OnJumped() { if (animator != null) animator.SetTrigger(JumpId); }
@@ -96,5 +160,16 @@ public class PlayerAnimator : MonoBehaviour
         if (player.IsGrounded) lastGroundedTime = Time.time;
         animator.SetBool(GroundedId, Time.time - lastGroundedTime <= groundedGrace);
         animator.SetFloat(VerticalSpeedId, player.VerticalVelocity);
+
+        UpdateUpperLayer();
+    }
+
+    /// <summary>Lớp thân trên chỉ bật khi không đánh quyền cước và còn sống; tắt thì toàn thân phát anim của lớp nền.</summary>
+    private void UpdateUpperLayer()
+    {
+        if (upperLayer < 0) return;
+        bool wantUpper = !(melee != null && melee.IsAttacking) && !(stats != null && !stats.IsAlive);
+        upperWeight = Mathf.MoveTowards(upperWeight, wantUpper ? 1f : 0f, upperLayerBlendSpeed * Time.deltaTime);
+        animator.SetLayerWeight(upperLayer, upperWeight);
     }
 }

@@ -51,6 +51,10 @@ public class TrainingDummy : MonoBehaviour
     [Tooltip("Tốc độ ngã/đứng dậy (độ/giây).")]
     [SerializeField, Min(1f)] private float fallSpeed = 240f;
 
+    [Header("Bị đẩy lùi")]
+    [Tooltip("Thời gian trượt lùi khi bị đẩy (giây).")]
+    [SerializeField, Min(0.02f)] private float knockDuration = 0.15f;
+
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
@@ -62,6 +66,8 @@ public class TrainingDummy : MonoBehaviour
     private float tilt;
     private Quaternion baseRotation;
     private bool flashing;
+    private Vector3 knockRemaining;
+    private float knockTimer;
 
     private void Awake()
     {
@@ -77,12 +83,20 @@ public class TrainingDummy : MonoBehaviour
     {
         damageable.Damaged += OnDamaged;
         damageable.Died += OnDied;
+        damageable.KnockedBack += OnKnockedBack;
     }
 
     private void OnDisable()
     {
         damageable.Damaged -= OnDamaged;
         damageable.Died -= OnDied;
+        damageable.KnockedBack -= OnKnockedBack;
+    }
+
+    private void OnKnockedBack(Vector3 delta)
+    {
+        knockRemaining = delta;
+        knockTimer = knockDuration;
     }
 
     private void OnDamaged(DamageInfo info)
@@ -107,6 +121,16 @@ public class TrainingDummy : MonoBehaviour
     {
         UpdateFlash();
         UpdateFall();
+        UpdateKnock();
+    }
+
+    /// <summary>Trượt lùi đều trong knockDuration giây.</summary>
+    private void UpdateKnock()
+    {
+        if (knockTimer <= 0f) return;
+        float step = Mathf.Min(Time.deltaTime, knockTimer);
+        transform.position += knockRemaining * (step / knockDuration);
+        knockTimer -= step;
     }
 
     private void LateUpdate()
