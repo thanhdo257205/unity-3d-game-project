@@ -12,7 +12,12 @@
 - Thư mục dự án Unity: `PRJ_Game_3D\PRJ_Game_3D_PNTT` (thư mục cha `PRJ_Game_3D` là nơi mở phiên Claude Code, chứa `.mcp.json`).
 - Unity `6000.6.3f1`, URP 17.6, Input System 1.20. MCP: **MCP for Unity (CoplayDev)** chạy HTTP ở `http://127.0.0.1:8080/mcp`; Blender MCP qua `uvx blender-mcp`.
 - Khi bắt đầu phiên mới: gọi `set_active_instance` với `PRJ_Game_3D_PNTT@<hash>` (xem resource `mcpforunity://instances`).
-- Giai đoạn đã xong: **0** (chuẩn bị dự án).
+- Giai đoạn đã xong: **0** (chuẩn bị dự án), **1** (sân tập `SanTap`: nhân vật viên nang, camera Cinemachine sau vai phải, Bloom).
+- Scene chính để thử: `Assets/_Game/Scenes/SanTap.unity`. Scene `TestKiem` chỉ để xem model phi kiếm.
+- Script Giai đoạn 1: `PlayerController` (CharacterController: đi/chạy/nhảy) và `CameraOrbit` (điểm ngắm xoay bằng chuột, Cinemachine `CM_SauVaiPhai` bám theo nó).
+- Phi kiếm: prefab `Assets/_Game/Prefabs/ThanhTrucKiem.prefab` (2.105 tam giác, dài 1m, pivot giữa chuôi, mũi +Z). Giai đoạn 3 dùng prefab này thay Thanh Ngọc Kiếm.
+- Mẹo test qua MCP: Unity chạy nền thì Play mode gần như đứng hình; cần `Application.runInBackground = true` + `EditorApplication.QueuePlayerLoopUpdate()` mỗi tick. Giả lập phím qua `QueueStateEvent` không ổn định, nên kiểm tra logic bằng cách gọi `Update()` qua reflection.
+- Ảnh chụp thử do MCP tạo nằm ở `Assets/Screenshots/` (đã bị git bỏ qua).
 
 ---
 
