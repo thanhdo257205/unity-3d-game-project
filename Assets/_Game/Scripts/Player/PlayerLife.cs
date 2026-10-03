@@ -75,7 +75,7 @@ public class PlayerLife : MonoBehaviour
     public void Respawn()
     {
         if (stats == null || stats.IsAlive) return;
-        EnemyOrb.DestroyAll();
+        EnemyProjectiles.ClearAll();
         if (player != null)
         {
             player.TeleportTo(spawnPosition, spawnRotation);

@@ -245,7 +245,7 @@ public class PlayerMelee : MonoBehaviour
             // Sát người (gần như trùng) thì tính là trúng, còn lại kiểm tra góc quạt
             if (flat.sqrMagnitude > 0.04f && Vector3.Angle(forward, flat) > halfArc) continue;
 
-            DamageInfo info = new DamageInfo { amount = s.damage, point = point, direction = forward };
+            DamageInfo info = new DamageInfo { amount = s.damage, point = point, direction = forward, melee = true };
             d.TakeDamage(info);
             if (hitFeedback != null) hitFeedback.OnHit(!d.IsAlive);
             if (s.knockback > 0f && d.IsAlive) d.Knockback(forward * s.knockback);

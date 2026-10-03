@@ -75,6 +75,19 @@ public class HUD : MonoBehaviour
     [Tooltip("Thời gian số sát thương bay lên rồi mờ (giây).")]
     [SerializeField, Min(0.1f)] private float damageNumberTime = 0.8f;
 
+    [Header("Kẻ địch và linh thạch")]
+    [Tooltip("Chỉ hiện thanh máu kẻ địch trong khoảng cách này (mét).")]
+    [SerializeField, Min(1f)] private float enemyBarRange = 30f;
+
+    [Tooltip("Chiều rộng thanh máu kẻ địch (điểm ảnh trên màn hình chuẩn 1920x1080).")]
+    [SerializeField, Min(20f)] private float enemyBarWidth = 120f;
+
+    [Tooltip("Màu thanh máu kẻ địch.")]
+    [SerializeField] private Color enemyBarColor = new Color(0.85f, 0.22f, 0.18f);
+
+    [Tooltip("Thời gian dòng '+N linh thạch' bay lên rồi mờ (giây).")]
+    [SerializeField, Min(0.2f)] private float stonesPopupTime = 1.4f;
+
     [Tooltip("Tốc độ nhấp nháy của thanh Kiếm ý khi đầy (số lần mỗi giây).")]
     [SerializeField, Min(0.1f)] private float intentPulseRate = 3f;
 
@@ -105,6 +118,22 @@ public class HUD : MonoBehaviour
     }
     private readonly List<FloatingNumber> numbers = new List<FloatingNumber>();
 
+    // Thanh máu kẻ địch (vẽ trên màn hình theo vị trí đầu kẻ địch, dùng lại các phần tử)
+    private class EnemyBarEntry
+    {
+        public RectTransform root;
+        public Image fill;
+        public Text nameText;
+        public Text realmText;
+    }
+    private readonly List<EnemyBarEntry> enemyBars = new List<EnemyBarEntry>();
+    private RectTransform enemyBarLayer;
+
+    // Linh thạch
+    private Text stonesText;
+    private Text stonesPopup;
+    private float stonesPopupStart = -10f;
+
     private static readonly string[] SlotNames = { "Quạt", "Vòng", "Mũi tên" };
 
     private void Awake()
@@ -121,6 +150,7 @@ public class HUD : MonoBehaviour
         {
             stats.Damaged += OnPlayerDamaged;
             stats.ManaInsufficient += OnManaInsufficient;
+            stats.SpiritStonesGained += OnStonesGained;
         }
         if (life != null)
         {
@@ -136,6 +166,7 @@ public class HUD : MonoBehaviour
         {
             stats.Damaged -= OnPlayerDamaged;
             stats.ManaInsufficient -= OnManaInsufficient;
+            stats.SpiritStonesGained -= OnStonesGained;
         }
         if (life != null)
         {
@@ -160,10 +191,14 @@ public class HUD : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         root = cgo.GetComponent<RectTransform>();
 
+        enemyBarLayer = new GameObject("ThanhMauKeDich", typeof(RectTransform)).GetComponent<RectTransform>();
+        enemyBarLayer.SetParent(root, false);
+        Stretch(enemyBarLayer);
         BuildVignette();
         BuildStatusPanel();
         BuildSlots();
         BuildRealmPanel();
+        BuildStonesUI();
         BuildDeathPanel();
     }
 
@@ -257,6 +292,22 @@ public class HUD : MonoBehaviour
         }
     }
 
+    /// <summary>Bộ đếm linh thạch dưới tên cảnh giới và dòng "+N linh thạch" bay lên giữa màn hình.</summary>
+    private void BuildStonesUI()
+    {
+        RectTransform panel = MakePanel("BangLinhThach", root, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(30f, -86f), new Vector2(300f, 40f));
+        stonesText = MakeText(panel, "LinhThach", "Linh thạch: 0", 22, TextAnchor.MiddleCenter, textColor);
+        Stretch(stonesText.rectTransform);
+
+        stonesPopup = MakeText(root, "CongLinhThach", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.85f, 0.3f));
+        SetRect(stonesPopup.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 260f), new Vector2(500f, 60f));
+        stonesPopup.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        Outline o = stonesPopup.gameObject.AddComponent<Outline>();
+        o.effectColor = new Color(0f, 0f, 0f, 0.8f);
+        o.effectDistance = new Vector2(2f, -2f);
+        stonesPopup.gameObject.SetActive(false);
+    }
+
     private void BuildRealmPanel()
     {
         RectTransform panel = MakePanel("BangCanhGioi", root, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(30f, -30f), new Vector2(300f, 48f));
@@ -326,6 +377,8 @@ public class HUD : MonoBehaviour
         UpdateSwordInfo();
         UpdateWarnings();
         UpdateNumbers();
+        UpdateEnemyBars();
+        UpdateStones();
         UpdateDeathFade();
     }
 
@@ -400,6 +453,97 @@ public class HUD : MonoBehaviour
         deathFade = Mathf.MoveTowards(deathFade, target, Time.unscaledDeltaTime * 1.5f);
         deathGroup.alpha = deathFade;
         if (!deathVisible && deathFade <= 0f && deathPanel.activeSelf) deathPanel.SetActive(false);
+    }
+
+    private EnemyBarEntry NewEnemyBar()
+    {
+        EnemyBarEntry e = new EnemyBarEntry();
+        GameObject go = new GameObject("ThanhMau", typeof(RectTransform));
+        e.root = go.GetComponent<RectTransform>();
+        e.root.SetParent(enemyBarLayer, false);
+        e.root.anchorMin = e.root.anchorMax = Vector2.zero;
+        e.root.pivot = new Vector2(0.5f, 0f);
+        e.root.sizeDelta = new Vector2(enemyBarWidth, 8f);
+
+        Image back = NewObject<Image>("Nen", e.root);
+        back.sprite = whiteSprite;
+        back.color = new Color(0f, 0f, 0f, 0.6f);
+        back.raycastTarget = false;
+        Stretch(back.rectTransform);
+        AddFrame(e.root, borderColor, 1f);
+
+        e.fill = NewObject<Image>("Day", back.rectTransform);
+        e.fill.sprite = whiteSprite;
+        e.fill.type = Image.Type.Filled;
+        e.fill.fillMethod = Image.FillMethod.Horizontal;
+        e.fill.color = enemyBarColor;
+        e.fill.raycastTarget = false;
+        Stretch(e.fill.rectTransform);
+
+        e.nameText = MakeText(e.root, "Ten", "", 20, TextAnchor.LowerCenter, textColor);
+        SetRect(e.nameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(300f, 26f));
+        e.nameText.rectTransform.pivot = new Vector2(0.5f, 0f);
+        Outline o1 = e.nameText.gameObject.AddComponent<Outline>();
+        o1.effectColor = new Color(0f, 0f, 0f, 0.8f); o1.effectDistance = new Vector2(1.5f, -1.5f);
+
+        e.realmText = MakeText(e.root, "CanhGioi", "", 16, TextAnchor.UpperCenter, intentColor);
+        SetRect(e.realmText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, -3f), new Vector2(300f, 22f));
+        e.realmText.rectTransform.pivot = new Vector2(0.5f, 1f);
+        Outline o2 = e.realmText.gameObject.AddComponent<Outline>();
+        o2.effectColor = new Color(0f, 0f, 0f, 0.8f); o2.effectDistance = new Vector2(1.5f, -1.5f);
+        return e;
+    }
+
+    /// <summary>Thanh máu + tên + cảnh giới trên đầu từng kẻ địch còn sống, trong tầm và trước mặt camera.</summary>
+    private void UpdateEnemyBars()
+    {
+        Camera cam = Camera.main;
+        float scale = canvas.scaleFactor;
+        int used = 0;
+        if (cam != null)
+        {
+            Vector3 camPos = cam.transform.position;
+            for (int i = 0; i < EnemyBase.All.Count; i++)
+            {
+                EnemyBase e = EnemyBase.All[i];
+                if (e == null || !e.IsAlive) continue;
+                if ((e.transform.position - stats.transform.position).sqrMagnitude > enemyBarRange * enemyBarRange) continue;
+                Vector3 sp = cam.WorldToScreenPoint(e.BarPosition);
+                if (sp.z <= 0.1f) continue;
+
+                while (enemyBars.Count <= used) enemyBars.Add(NewEnemyBar());
+                EnemyBarEntry entry = enemyBars[used++];
+                if (!entry.root.gameObject.activeSelf) entry.root.gameObject.SetActive(true);
+                entry.root.anchoredPosition = new Vector2(sp.x / scale, sp.y / scale);
+                entry.fill.fillAmount = e.HealthRatio;
+                if (entry.nameText.text != e.DisplayName) entry.nameText.text = e.DisplayName;
+                string realmName = e.RealmName;
+                if (entry.realmText.text != realmName) entry.realmText.text = realmName;
+            }
+        }
+        for (int i = used; i < enemyBars.Count; i++)
+            if (enemyBars[i].root.gameObject.activeSelf) enemyBars[i].root.gameObject.SetActive(false);
+    }
+
+    private void UpdateStones()
+    {
+        stonesText.text = "Linh thạch: " + stats.SpiritStones;
+        float t = (Time.unscaledTime - stonesPopupStart) / stonesPopupTime;
+        if (t >= 0f && t < 1f)
+        {
+            if (!stonesPopup.gameObject.activeSelf) stonesPopup.gameObject.SetActive(true);
+            stonesPopup.rectTransform.anchoredPosition = new Vector2(0f, 260f + Mathf.Sqrt(t) * 70f);
+            Color c = stonesPopup.color;
+            c.a = t < 0.6f ? 1f : 1f - (t - 0.6f) / 0.4f;
+            stonesPopup.color = c;
+        }
+        else if (stonesPopup.gameObject.activeSelf) stonesPopup.gameObject.SetActive(false);
+    }
+
+    private void OnStonesGained(int amount)
+    {
+        stonesPopup.text = "+" + amount + " linh thạch";
+        stonesPopupStart = Time.unscaledTime;
     }
 
     // ================= Sự kiện =================

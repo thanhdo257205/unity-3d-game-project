@@ -6,7 +6,7 @@ using UnityEngine;
 /// Trúng người chơi thì trừ máu rồi biến mất. Bị phi kiếm chặn (SwordSwarm gọi <see cref="Block"/>) thì cũng biến mất.
 /// Đụng vật cản (tường, hộp) thì tự tan. Bay quá lâu cũng tự tan.
 /// </summary>
-public class EnemyOrb : MonoBehaviour
+public class EnemyOrb : MonoBehaviour, IEnemyProjectile
 {
     [Header("Thông số")]
     [Tooltip("Bán kính va chạm của quả cầu (mét). Dùng để kiểm tra trúng người chơi và trúng phi kiếm.")]
@@ -46,8 +46,8 @@ public class EnemyOrb : MonoBehaviour
     /// <summary>Đã có một thanh kiếm được cử ra đón quả cầu này chưa (SwordSwarm dùng).</summary>
     public bool HasGuard { get; set; }
 
-    private void OnEnable() { All.Add(this); }
-    private void OnDisable() { All.Remove(this); }
+    private void OnEnable() { All.Add(this); EnemyProjectiles.All.Add(this); }
+    private void OnDisable() { All.Remove(this); EnemyProjectiles.All.Remove(this); }
 
     /// <summary>Phóng quả cầu từ origin về phía aimPoint với tốc độ speed (m/s) và sát thương damage.</summary>
     public void Launch(Vector3 origin, Vector3 aimPoint, float speed, float damage, PlayerStats target)

@@ -587,14 +587,14 @@ public class SwordSwarm : MonoBehaviour
     /// </summary>
     private void UpdateDefense()
     {
-        List<EnemyOrb> orbs = EnemyOrb.All;
+        List<IEnemyProjectile> orbs = EnemyProjectiles.All;
         if (orbs.Count == 0 || owner == null) return;
         if (current == FormationType.Arrow) return;
 
         Vector3 center = AnchorPosition;
         for (int o = orbs.Count - 1; o >= 0; o--)
         {
-            EnemyOrb orb = orbs[o];
+            IEnemyProjectile orb = orbs[o];
             if (orb == null || orb.IsDone) continue;
             Vector3 op = orb.Position;
 
@@ -620,7 +620,7 @@ public class SwordSwarm : MonoBehaviour
     }
 
     /// <summary>Chọn thanh kiếm rảnh gần điểm đón nhất và cho nó bay ra chắn đường cầu.</summary>
-    private void AssignGuard(EnemyOrb orb, Vector3 center)
+    private void AssignGuard(IEnemyProjectile orb, Vector3 center)
     {
         Vector3 dir = (orb.Position - center).normalized;
         Vector3 guardPoint = center + dir * guardDistance;
@@ -642,7 +642,7 @@ public class SwordSwarm : MonoBehaviour
     }
 
     /// <summary>Cầu bị kiếm chặn: tia lửa, kiếm rung nhẹ, hủy cầu.</summary>
-    private void BlockOrb(EnemyOrb orb, FlyingSword sword, Vector3 point)
+    private void BlockOrb(IEnemyProjectile orb, FlyingSword sword, Vector3 point)
     {
         orb.Block();
         sword.ClearGuard();

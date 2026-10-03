@@ -36,6 +36,13 @@ public class PlayerStats : MonoBehaviour
     [Tooltip("Tốc độ Kiếm ý tụt (mỗi giây) khi đã quá thời gian trên.")]
     [SerializeField, Min(0f)] private float intentDecayRate = 1f;
 
+    [Header("Chênh lệch cảnh giới (Phần 5.3)")]
+    [Tooltip("Hệ số sát thương nhận vào khi đối thủ mạnh hơn mình một đại cảnh giới (mỗi bậc nhân thêm một lần).")]
+    [SerializeField, Min(1f)] private float gapDamageTaken = 2.5f;
+
+    [Tooltip("Hệ số sát thương gây ra khi đối thủ mạnh hơn mình một đại cảnh giới (mỗi bậc nhân thêm một lần).")]
+    [SerializeField, Range(0.01f, 1f)] private float gapDamageDealt = 0.4f;
+
     [Header("Cảnh giới (Thần thức)")]
     [Tooltip("Thang cảnh giới theo thứ tự từ thấp đến cao (kéo các file RealmData vào). F4/F5 chuyển lên xuống thang này.")]
     [SerializeField] private RealmData[] realmLadder;
@@ -76,6 +83,18 @@ public class PlayerStats : MonoBehaviour
     /// <summary>Số kiếm tối đa (Thần thức) của cảnh giới hiện tại.</summary>
     public int MaxSwords => Realm != null ? Realm.MaxSwords : 3;
 
+    /// <summary>Người chơi duy nhất trong scene (kẻ địch, túi trữ vật dùng để tìm).</summary>
+    public static PlayerStats Instance { get; private set; }
+
+    /// <summary>Số linh thạch đang có.</summary>
+    public int SpiritStones { get; private set; }
+
+    /// <summary>Đại cảnh giới hiện tại (0 = Luyện Khí...).</summary>
+    public int MajorRealm => Realm != null ? Realm.MajorRealm : 0;
+
+    /// <summary>Báo khi nhặt được linh thạch (tham số: số vừa nhận).</summary>
+    public event Action<int> SpiritStonesGained;
+
     /// <summary>Báo khi bị đánh trúng (sát thương thật đã trừ).</summary>
     public event Action<float> Damaged;
     /// <summary>Báo khi hết máu.</summary>
@@ -91,6 +110,9 @@ public class PlayerStats : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
+        RealmRules.TakenPerGap = gapDamageTaken;
+        RealmRules.DealtPerGap = gapDamageDealt;
         health = maxHealth;
         mana = MaxMana;
     }
@@ -169,6 +191,14 @@ public class PlayerStats : MonoBehaviour
             intentWasFull = true;
             IntentBecameFull?.Invoke();
         }
+    }
+
+    /// <summary>Cộng linh thạch (nhặt túi trữ vật).</summary>
+    public void AddSpiritStones(int amount)
+    {
+        if (amount <= 0) return;
+        SpiritStones += amount;
+        SpiritStonesGained?.Invoke(amount);
     }
 
     /// <summary>Nhận sát thương. Bỏ qua nếu đang bất tử hoặc đã chết. Trả về true nếu thật sự bị trừ máu.</summary>

@@ -11,6 +11,8 @@ public struct DamageInfo
     public Vector3 point;
     /// <summary>Hướng đòn đánh bay tới (vector đơn vị).</summary>
     public Vector3 direction;
+    /// <summary>Đòn quyền cước (kẻ địch bị loạng choạng, ngắt đòn đang ra).</summary>
+    public bool melee;
 }
 
 /// <summary>
@@ -34,6 +36,9 @@ public class Damageable : MonoBehaviour
     private static readonly Dictionary<Collider, Damageable> ByCollider = new Dictionary<Collider, Damageable>();
 
     private Collider[] colliders;
+
+    /// <summary>Hệ số nhân sát thương nhận vào (chênh lệch cảnh giới). Kẻ địch tự cập nhật mỗi khung hình.</summary>
+    public float DamageTakenMultiplier { get; set; } = 1f;
 
     /// <summary>Máu hiện tại.</summary>
     public float Health { get; private set; }
@@ -100,6 +105,7 @@ public class Damageable : MonoBehaviour
     public void TakeDamage(DamageInfo info)
     {
         if (!IsAlive) return;
+        info.amount *= DamageTakenMultiplier;
         Health = Mathf.Max(0f, Health - info.amount);
         Damaged?.Invoke(info);
         AnyDamaged?.Invoke(this, info);

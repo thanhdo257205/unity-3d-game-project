@@ -16,4 +16,5 @@ MonoBehaviour:
   order: 8
   maxSwords: 60
   maxMana: 1000
+  majorRealm: 2
   unlockNote: 

@@ -424,10 +424,7 @@ public class FlyingSword : MonoBehaviour
             hitTimes[d] = Time.time;
 
             Vector3 dir = Velocity.sqrMagnitude > 0.01f ? Velocity.normalized : transform.forward;
-            DamageInfo info;
-            info.amount = damage;
-            info.point = OverlapBuffer[i].ClosestPoint(b);
-            info.direction = dir;
+            DamageInfo info = new DamageInfo { amount = damage, point = OverlapBuffer[i].ClosestPoint(b), direction = dir, melee = false };
             d.TakeDamage(info);
 
             // Nhát chém tấn công (không phải chạm nhẹ của đội hình Vòng) thì có dừng hình và rung camera

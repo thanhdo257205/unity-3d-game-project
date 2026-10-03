@@ -19,6 +19,9 @@ public class RealmData : ScriptableObject
     [Tooltip("Pháp lực tối đa.")]
     [SerializeField, Min(1f)] private float maxMana = 100f;
 
+    [Tooltip("Đại cảnh giới: 0 = Luyện Khí, 1 = Trúc Cơ, 2 = Kết Đan, 3 = Nguyên Anh. Chênh một đại cảnh giới thì sát thương nhận x2.5 và gây ra x0.4 (Phần 5.3).")]
+    [SerializeField, Min(0)] private int majorRealm;
+
     [Tooltip("Ghi chú mở khóa theo bảng thiết kế (chỉ để tham khảo, chưa khóa tính năng nào).")]
     [SerializeField, TextArea] private string unlockNote;
 
@@ -27,6 +30,9 @@ public class RealmData : ScriptableObject
 
     /// <summary>Thứ tự trong thang tu luyện.</summary>
     public int Order => order;
+
+    /// <summary>Đại cảnh giới (0 = Luyện Khí, 1 = Trúc Cơ, 2 = Kết Đan, 3 = Nguyên Anh).</summary>
+    public int MajorRealm => majorRealm;
 
     /// <summary>Số kiếm tối đa (Thần thức).</summary>
     public int MaxSwords => maxSwords;
