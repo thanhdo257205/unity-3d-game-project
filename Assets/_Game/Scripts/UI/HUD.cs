@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Giao diện người chơi bằng tiếng Việt (tự dựng khi bấm Play, không cần kéo thả):
@@ -12,6 +13,8 @@ using UnityEngine.UI;
 /// - Góc trên trái: tên cảnh giới.
 /// - Số sát thương bay lên khi đánh trúng, viền đỏ màn hình khi bị đánh, cảnh báo "Pháp lực không đủ".
 /// - Màn hình "Đạo tiêu thân vẫn" kèm nút "Thử lại" khi chết.
+/// Chữ dùng TextMeshPro (chữ vector SDF nên luôn sắc nét), phông Inter có đủ dấu tiếng Việt. Canvas Scaler theo màn hình chuẩn 1920x1080.
+/// Bảng tài nguyên tự co theo số dòng đang hiện (dòng "Kiếm" chỉ hiện khi Ngự Kiếm Thuật bật).
 /// Màu sắc, kích thước, phông chữ chỉnh trong Inspector.
 /// </summary>
 public class HUD : MonoBehaviour
@@ -30,8 +33,8 @@ public class HUD : MonoBehaviour
     [SerializeField] private Hotbar hotbar;
 
     [Header("Phông chữ")]
-    [Tooltip("Danh sách phông chữ hệ thống thử theo thứ tự, phải hỗ trợ dấu tiếng Việt. Cái đầu tiên máy có sẽ được dùng.")]
-    [SerializeField] private string[] fontNames = { "Be Vietnam Pro", "Noto Sans", "Segoe UI", "Arial" };
+    [Tooltip("Phông TextMeshPro dùng cho mọi chữ trên màn hình (phải có đủ dấu tiếng Việt). Mặc định là Inter (Assets/_Game/UI/Fonts/Inter_Regular_SDF). Để trống thì dùng phông mặc định của TextMeshPro.")]
+    [SerializeField] private TMP_FontAsset fontAsset;
 
     [Header("Màu")]
     [Tooltip("Màu thanh Máu.")]
@@ -119,15 +122,22 @@ public class HUD : MonoBehaviour
     [SerializeField, Min(0.1f)] private float intentPulseRate = 3f;
 
     // ---- Phần tử UI ----
-    private Font font;
+    private TMP_FontAsset font;
+    private RectTransform statusPanel;
+    private float lastPanelHeight = -1f;
+
+    // Kích thước bảng tài nguyên (điểm ảnh trên màn hình chuẩn 1920x1080)
+    private const float PanelWidth = 430f;
+    private const float PanelHeightBase = 124f;    // ba thanh Máu / Pháp lực / Kiếm ý
+    private const float PanelRowHeight = 34f;      // thêm một dòng ("Kiếm: x/y") khi Ngự Kiếm Thuật bật
     private Canvas canvas;
     private RectTransform root;
     private Image healthFill, manaFill, intentFill, manaBack, intentBack;
-    private Text healthText, manaText, intentText, swordText, realmText, manaWarnText;
+    private TextMeshProUGUI healthText, manaText, intentText, swordText, realmText, manaWarnText;
     private Image[] slotBack = new Image[3];
-    private Text[] slotLabel = new Text[3];
+    private TextMeshProUGUI[] slotLabel = new TextMeshProUGUI[3];
     private RectTransform qBox;
-    private Text qText;
+    private TextMeshProUGUI qText;
 
     // Thanh ô đồ
     private class HotbarSlotUI
@@ -135,13 +145,13 @@ public class HUD : MonoBehaviour
         public RectTransform root;
         public Image back;
         public Image icon;
-        public Text number;
-        public Text count;
-        public Text fallback;     // chữ thay biểu tượng khi vật phẩm chưa có hình
+        public TextMeshProUGUI number;
+        public TextMeshProUGUI count;
+        public TextMeshProUGUI fallback;     // chữ thay biểu tượng khi vật phẩm chưa có hình
         public GameObject selFrame;
     }
     private readonly HotbarSlotUI[] hotSlots = new HotbarSlotUI[Hotbar.SlotCount];
-    private Text itemNameText;
+    private TextMeshProUGUI itemNameText;
     private string itemNameString = "";
     private Color itemNameColor;
     private float itemNameStart = -10f;
@@ -157,7 +167,7 @@ public class HUD : MonoBehaviour
     // Số sát thương bay lên (dùng lại, không tạo mới liên tục)
     private class FloatingNumber
     {
-        public Text text;
+        public TextMeshProUGUI text;
         public Vector3 world;
         public float start;
         public bool active;
@@ -169,15 +179,15 @@ public class HUD : MonoBehaviour
     {
         public RectTransform root;
         public Image fill;
-        public Text nameText;
-        public Text realmText;
+        public TextMeshProUGUI nameText;
+        public TextMeshProUGUI realmText;
     }
     private readonly List<EnemyBarEntry> enemyBars = new List<EnemyBarEntry>();
     private RectTransform enemyBarLayer;
 
     // Linh thạch
-    private Text stonesText;
-    private Text stonesPopup;
+    private TextMeshProUGUI stonesText;
+    private TextMeshProUGUI stonesPopup;
     private float stonesPopupStart = -10f;
 
     private static readonly string[] SlotNames = { "Quạt", "Vòng", "Mũi tên" };
@@ -185,7 +195,7 @@ public class HUD : MonoBehaviour
 
     private void Awake()
     {
-        font = Font.CreateDynamicFontFromOSFont(fontNames, 32);
+        font = fontAsset != null ? fontAsset : TMP_Settings.defaultFontAsset;
         whiteSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height), new Vector2(0.5f, 0.5f));
         BuildUI();
         EnsureEventSystem();
@@ -245,7 +255,9 @@ public class HUD : MonoBehaviour
         CanvasScaler scaler = cgo.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
+        scaler.referencePixelsPerUnit = 100f;
         root = cgo.GetComponent<RectTransform>();
 
         enemyBarLayer = new GameObject("ThanhMauKeDich", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -291,7 +303,8 @@ public class HUD : MonoBehaviour
 
     private void BuildStatusPanel()
     {
-        RectTransform panel = MakePanel("BangTaiNguyen", root, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(30f, 30f), new Vector2(430f, 168f));
+        RectTransform panel = MakePanel("BangTaiNguyen", root, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(30f, 30f), new Vector2(PanelWidth, PanelHeightBase));
+        statusPanel = panel;
 
         float y = -14f;
         healthFill = MakeBar(panel, "Máu", healthColor, ref y, out healthText, out _);
@@ -299,17 +312,19 @@ public class HUD : MonoBehaviour
         intentFill = MakeBar(panel, "Kiếm ý", intentColor, ref y, out intentText, out intentBack);
 
         swordText = MakeText(panel, "Kiem", "Kiếm: 0/0", 24, TextAnchor.MiddleLeft, textColor);
-        SetRect(swordText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, y - 4f), new Vector2(240f, 30f));
+        SetRect(swordText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, y), new Vector2(240f, 30f));
 
-        manaWarnText = MakeText(panel, "CanhBaoPhapLuc", "Pháp lực không đủ", 20, TextAnchor.MiddleRight, new Color(1f, 0.4f, 0.35f));
-        SetRect(manaWarnText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-14f, y - 4f), new Vector2(220f, 30f));
+        // Dòng cảnh báo nổi phía trên các ô đội hình (vị trí đặt trong UpdateLayout), không chiếm chỗ trong bảng
+        manaWarnText = MakeText(root, "CanhBaoPhapLuc", "Pháp lực không đủ", 22, TextAnchor.MiddleLeft, new Color(1f, 0.4f, 0.35f));
+        SetRect(manaWarnText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(30f, 260f), new Vector2(300f, 30f));
+        Outline(manaWarnText);
         manaWarnText.gameObject.SetActive(false);
     }
 
     /// <summary>Một thanh tài nguyên: nhãn bên trái, thanh ở giữa, số bên phải. y được dịch xuống cho thanh kế tiếp.</summary>
-    private Image MakeBar(RectTransform parent, string label, Color color, ref float y, out Text valueText, out Image back)
+    private Image MakeBar(RectTransform parent, string label, Color color, ref float y, out TextMeshProUGUI valueText, out Image back)
     {
-        Text l = MakeText(parent, "Nhan_" + label, label, 22, TextAnchor.MiddleLeft, textColor);
+        TextMeshProUGUI l = MakeText(parent, "Nhan_" + label, label, 22, TextAnchor.MiddleLeft, textColor);
         SetRect(l.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, y), new Vector2(104f, 30f));
 
         back = NewObject<Image>("Nen_" + label, parent);
@@ -344,7 +359,7 @@ public class HUD : MonoBehaviour
             RectTransform slot = MakePanel("OĐộiHình" + SlotKeys[i], root, new Vector2(0f, 0f), new Vector2(0f, 0f),
                 new Vector2(30f + i * (w + gap), 210f), new Vector2(w, h));
             slotBack[i] = slot.GetComponent<Image>();
-            Text t = MakeText(slot, "Ten", SlotKeys[i] + "  " + SlotNames[i], 22, TextAnchor.MiddleCenter, textColor);
+            TextMeshProUGUI t = MakeText(slot, "Ten", SlotKeys[i] + "  " + SlotNames[i], 22, TextAnchor.MiddleCenter, textColor);
             Stretch(t.rectTransform);
             slotLabel[i] = t;
         }
@@ -388,20 +403,19 @@ public class HUD : MonoBehaviour
             icon.enabled = false;
             ui.icon = icon;
 
-            Text fb = MakeText(rt, "Chu", "", 20, TextAnchor.MiddleCenter, textColor);
+            TextMeshProUGUI fb = MakeText(rt, "Chu", "", 20, TextAnchor.MiddleCenter, textColor);
             Stretch(fb.rectTransform);
             ui.fallback = fb;
 
-            Text num = MakeText(rt, "So", (i + 1).ToString(), 20, TextAnchor.UpperLeft, new Color(1f, 0.92f, 0.65f));
+            TextMeshProUGUI num = MakeText(rt, "So", (i + 1).ToString(), 20, TextAnchor.UpperLeft, new Color(1f, 0.92f, 0.65f));
             Stretch(num.rectTransform);
             num.rectTransform.offsetMin = new Vector2(6f, 0f); num.rectTransform.offsetMax = new Vector2(0f, -3f);
             ui.number = num;
 
-            Text cnt = MakeText(rt, "SoLuong", "", 22, TextAnchor.LowerRight, textColor);
+            TextMeshProUGUI cnt = MakeText(rt, "SoLuong", "", 22, TextAnchor.LowerRight, textColor);
             Stretch(cnt.rectTransform);
             cnt.rectTransform.offsetMin = new Vector2(0f, 3f); cnt.rectTransform.offsetMax = new Vector2(-6f, 0f);
-            Outline co = cnt.gameObject.AddComponent<Outline>();
-            co.effectColor = new Color(0f, 0f, 0f, 0.9f); co.effectDistance = new Vector2(1.5f, -1.5f);
+            Outline(cnt);
             ui.count = cnt;
 
             ui.root = rt;
@@ -412,8 +426,7 @@ public class HUD : MonoBehaviour
         itemNameText = MakeText(root, "TenVatPham", "", 30, TextAnchor.MiddleCenter, textColor);
         SetRect(itemNameText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, hotbarBottom + size * hotbarSelectedScale + 14f), new Vector2(700f, 44f));
         itemNameText.rectTransform.pivot = new Vector2(0.5f, 0f);
-        Outline o = itemNameText.gameObject.AddComponent<Outline>();
-        o.effectColor = new Color(0f, 0f, 0f, 0.85f); o.effectDistance = new Vector2(2f, -2f);
+        Outline(itemNameText);
         itemNameText.gameObject.SetActive(false);
     }
 
@@ -498,9 +511,7 @@ public class HUD : MonoBehaviour
         stonesPopup = MakeText(root, "CongLinhThach", "", 34, TextAnchor.MiddleCenter, new Color(1f, 0.85f, 0.3f));
         SetRect(stonesPopup.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 260f), new Vector2(500f, 60f));
         stonesPopup.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-        Outline o = stonesPopup.gameObject.AddComponent<Outline>();
-        o.effectColor = new Color(0f, 0f, 0f, 0.8f);
-        o.effectDistance = new Vector2(2f, -2f);
+        Outline(stonesPopup);
         stonesPopup.gameObject.SetActive(false);
     }
 
@@ -523,7 +534,7 @@ public class HUD : MonoBehaviour
         dim.color = new Color(0f, 0f, 0f, 0.72f);
         Stretch(dim.rectTransform);
 
-        Text title = MakeText((RectTransform)deathPanel.transform, "TieuDe", "Đạo tiêu thân vẫn", 84, TextAnchor.MiddleCenter, new Color(0.9f, 0.25f, 0.2f));
+        TextMeshProUGUI title = MakeText((RectTransform)deathPanel.transform, "TieuDe", "Đạo tiêu thân vẫn", 84, TextAnchor.MiddleCenter, new Color(0.9f, 0.25f, 0.2f));
         SetRect(title.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 60f), new Vector2(1000f, 130f));
 
         // Nút "Thử lại"
@@ -542,7 +553,7 @@ public class HUD : MonoBehaviour
         btn.colors = cb;
         btn.targetGraphic = bimg;
         btn.onClick.AddListener(OnRetryClicked);
-        Text bt = MakeText(brt, "Chu", "Thử lại", 34, TextAnchor.MiddleCenter, textColor);
+        TextMeshProUGUI bt = MakeText(brt, "Chu", "Thử lại", 34, TextAnchor.MiddleCenter, textColor);
         Stretch(bt.rectTransform);
 
         deathGroup.alpha = 0f;
@@ -571,6 +582,7 @@ public class HUD : MonoBehaviour
         if (stats == null) return;
         UpdateBars();
         UpdateSwordInfo();
+        UpdateLayout();
         UpdateHotbar();
         UpdateWarnings();
         UpdateNumbers();
@@ -626,6 +638,22 @@ public class HUD : MonoBehaviour
             slotBack[i].color = on ? new Color(0.45f, 0.36f, 0.1f, 0.85f) : panelColor;
             slotLabel[i].color = on ? new Color(1f, 0.93f, 0.6f) : new Color(textColor.r, textColor.g, textColor.b, 0.6f);
         }
+    }
+
+    /// <summary>Bảng tài nguyên co theo số dòng đang hiện; các ô Q / Z X C và dòng cảnh báo nằm ngay trên bảng, không để khoảng trống.</summary>
+    private void UpdateLayout()
+    {
+        bool extraRow = swarm != null && swarm.IsActive;
+        float h = PanelHeightBase + (extraRow ? PanelRowHeight : 0f);
+        if (Mathf.Approximately(h, lastPanelHeight)) return;
+        lastPanelHeight = h;
+        statusPanel.sizeDelta = new Vector2(PanelWidth, h);
+
+        float w = 130f, gap = 10f;
+        float boxesY = 30f + h + 12f;
+        for (int i = 0; i < 3; i++) slotBack[i].rectTransform.anchoredPosition = new Vector2(30f + i * (w + gap), boxesY);
+        qBox.anchoredPosition = new Vector2(30f, boxesY);
+        manaWarnText.rectTransform.anchoredPosition = new Vector2(30f, boxesY + 46f + 6f);
     }
 
     private void UpdateWarnings()
@@ -688,14 +716,12 @@ public class HUD : MonoBehaviour
         e.nameText = MakeText(e.root, "Ten", "", 20, TextAnchor.LowerCenter, textColor);
         SetRect(e.nameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(300f, 26f));
         e.nameText.rectTransform.pivot = new Vector2(0.5f, 0f);
-        Outline o1 = e.nameText.gameObject.AddComponent<Outline>();
-        o1.effectColor = new Color(0f, 0f, 0f, 0.8f); o1.effectDistance = new Vector2(1.5f, -1.5f);
+        Outline(e.nameText);
 
         e.realmText = MakeText(e.root, "CanhGioi", "", 16, TextAnchor.UpperCenter, intentColor);
         SetRect(e.realmText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, -3f), new Vector2(300f, 22f));
         e.realmText.rectTransform.pivot = new Vector2(0.5f, 1f);
-        Outline o2 = e.realmText.gameObject.AddComponent<Outline>();
-        o2.effectColor = new Color(0f, 0f, 0f, 0.8f); o2.effectDistance = new Vector2(1.5f, -1.5f);
+        Outline(e.realmText);
         return e;
     }
 
@@ -787,9 +813,7 @@ public class HUD : MonoBehaviour
             if (numbers.Count >= 40) return;
             n = new FloatingNumber { text = MakeText(root, "SoSatThuong", "", 34, TextAnchor.MiddleCenter, Color.white) };
             n.text.raycastTarget = false;
-            Outline o = n.text.gameObject.AddComponent<Outline>();
-            o.effectColor = new Color(0f, 0f, 0f, 0.8f);
-            o.effectDistance = new Vector2(2f, -2f);
+            Outline(n.text);
             SetRect(n.text.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), Vector2.zero, new Vector2(160f, 50f));
             n.text.rectTransform.pivot = new Vector2(0.5f, 0.5f);   // số nằm giữa điểm trúng
             numbers.Add(n);
@@ -841,18 +865,42 @@ public class HUD : MonoBehaviour
         return go.GetComponent<T>();
     }
 
-    private Text MakeText(RectTransform parent, string name, string content, int size, TextAnchor anchor, Color color)
+    private TextMeshProUGUI MakeText(RectTransform parent, string name, string content, int size, TextAnchor anchor, Color color)
     {
-        Text t = NewObject<Text>(name, parent);
+        TextMeshProUGUI t = NewObject<TextMeshProUGUI>(name, parent);
         t.font = font;
         t.text = content;
         t.fontSize = size;
-        t.alignment = anchor;
+        t.alignment = ToAlignment(anchor);
         t.color = color;
-        t.horizontalOverflow = HorizontalWrapMode.Overflow;
-        t.verticalOverflow = VerticalWrapMode.Overflow;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.overflowMode = TextOverflowModes.Overflow;
+        t.richText = false;
         t.raycastTarget = false;
         return t;
+    }
+
+    /// <summary>Viền đen mảnh quanh chữ (cho chữ nổi trên nền sáng).</summary>
+    private static void Outline(TextMeshProUGUI t)
+    {
+        t.outlineWidth = 0.2f;
+        t.outlineColor = new Color32(0, 0, 0, 215);
+    }
+
+    private static TextAlignmentOptions ToAlignment(TextAnchor a)
+    {
+        switch (a)
+        {
+            case TextAnchor.UpperLeft: return TextAlignmentOptions.TopLeft;
+            case TextAnchor.UpperCenter: return TextAlignmentOptions.Top;
+            case TextAnchor.UpperRight: return TextAlignmentOptions.TopRight;
+            case TextAnchor.MiddleLeft: return TextAlignmentOptions.Left;
+            case TextAnchor.MiddleRight: return TextAlignmentOptions.Right;
+            case TextAnchor.LowerLeft: return TextAlignmentOptions.BottomLeft;
+            case TextAnchor.LowerCenter: return TextAlignmentOptions.Bottom;
+            case TextAnchor.LowerRight: return TextAlignmentOptions.BottomRight;
+            default: return TextAlignmentOptions.Center;
+        }
     }
 
     /// <summary>Bảng nền tối mờ có viền mảnh vàng kim.</summary>

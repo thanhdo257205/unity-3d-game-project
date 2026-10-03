@@ -20,16 +20,19 @@ public class SlashTrail : MonoBehaviour
     [SerializeField] private Material material;
 
     [Tooltip("Màu vệt chém ở chỗ mới nhất (alpha là độ đậm). Phía cũ mờ dần về 0.")]
-    [SerializeField] private Color color = new Color(0.55f, 0.85f, 1f, 0.9f);
+    [SerializeField] private Color color = new Color(0.6f, 1f, 0.8f, 0.4f);
 
     [Tooltip("Thời gian vệt tồn tại trước khi mờ hết (giây). Dài hơn thì vệt kéo dài hơn sau lưỡi kiếm.")]
-    [SerializeField, Min(0.02f)] private float lifetime = 0.2f;
+    [SerializeField, Min(0.02f)] private float lifetime = 0.12f;
+
+    [Tooltip("Phần đầu đời của vệt (0-1) dùng để mọc lên từ trong suốt, để chỗ mới nhất sát lưỡi kiếm không phủ đặc lên lưỡi. 0.3 = 30% đầu.")]
+    [SerializeField, Range(0f, 0.8f)] private float fadeInFraction = 0.3f;
 
     [Tooltip("Số điểm nội suy giữa hai khung hình liền nhau để vệt cong mượt (1 = không chia).")]
     [SerializeField, Range(1, 8)] private int smoothing = 3;
 
     [Tooltip("Dải chỉ dài tới mức này của lưỡi kiếm tính từ mũi (0.5 = nửa lưỡi phía mũi, 1 = cả lưỡi).")]
-    [SerializeField, Range(0.1f, 1f)] private float bladeFraction = 1f;
+    [SerializeField, Range(0.1f, 1f)] private float bladeFraction = 0.55f;
 
     private struct Sample
     {
@@ -126,9 +129,11 @@ public class SlashTrail : MonoBehaviour
                 Vector3 a = CatmullRom(p0.a, p1.a, p2.a, p3.a, u);
                 Vector3 b = CatmullRom(p0.b, p1.b, p2.b, p3.b, u);
                 float t = Mathf.Lerp(p1.time, p2.time, u);
-                float life = Mathf.Clamp01(1f - (now - t) / lifetime);
+                float age = Mathf.Clamp01((now - t) / lifetime);
+                float fadeIn = fadeInFraction > 0.001f ? Mathf.Clamp01(age / fadeInFraction) : 1f;   // mới nhất: trong suốt, rồi đậm dần
+                float fadeOut = 1f - age;                                                         // cũ dần: mờ về 0
                 Color c = color;
-                c.a *= life * life;
+                c.a *= fadeIn * fadeOut * fadeOut;
                 vertices.Add(a); colors.Add(new Color(c.r, c.g, c.b, c.a * 0.35f));   // phía đốc mờ hơn, phía mũi sáng nhất
                 vertices.Add(b); colors.Add(c);
             }

@@ -291,10 +291,11 @@ MonoBehaviour:
   bladeBase: {fileID: 2636259487958009463}
   bladeTip: {fileID: 2824322717186745891}
   material: {fileID: 2100000, guid: a3b3f64629b2ef949a08cdad9c30bde2, type: 2}
-  color: {r: 0.55, g: 1, b: 0.75, a: 0.6}
-  lifetime: 0.16
+  color: {r: 0.6, g: 1, b: 0.8, a: 0.4}
+  lifetime: 0.12
+  fadeInFraction: 0.3
   smoothing: 3
-  bladeFraction: 1
+  bladeFraction: 0.55
 --- !u!1 &8213221692653976232
 GameObject:
   m_ObjectHideFlags: 0

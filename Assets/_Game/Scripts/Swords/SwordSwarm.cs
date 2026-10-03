@@ -436,10 +436,12 @@ public class SwordSwarm : MonoBehaviour
         ctx.time = Time.time;
 
         IFormation formation = ActiveFormation;
-        int count = swords.Count;
-        for (int i = 0; i < count; i++)
+        EnsureDeployOrder();
+        // Chỗ đứng tính theo số kiếm CUỐI CÙNG (kể cả kiếm chưa bay ra): mỗi kiếm bay thẳng tới chỗ của mình, không xô lệch khi kiếm sau ra thêm
+        int count = Mathf.Max(swordCount, swords.Count);
+        for (int i = 0; i < swords.Count; i++)
         {
-            SwordSlot slot = formation.GetSlot(i, count, ctx);
+            SwordSlot slot = formation.GetSlot(swords[i].Index, count, ctx);
             swords[i].Tick(slot, dt);
         }
     }
@@ -790,6 +792,57 @@ public class SwordSwarm : MonoBehaviour
 
     // ================= Nội bộ =================
 
+    // ----- Thứ tự bay ra: từ giữa ra hai bên, luân phiên phải - trái -----
+
+    private int[] deployOrder = new int[0];
+    private int deployOrderFor = -1;
+
+    /// <summary>
+    /// Thứ tự lấp các chỗ trong đội hình khi n kiếm lần lượt bay ra: chỗ gần giữa trước, rồi luân phiên bên phải - bên trái
+    /// (mỗi lớp của Quạt xếp riêng), nên bầy kiếm tỏa đều về hai bên thay vì dồn một phía.
+    /// </summary>
+    private void BuildDeployOrder(int n)
+    {
+        int cap = Mathf.Max(1, fan.layerCapacity);
+        List<int> order = new List<int>(n);
+        for (int start = 0; start < n; start += cap)
+        {
+            int m = Mathf.Min(cap, n - start);
+            List<int> layer = new List<int>(m);
+            for (int j = 0; j < m; j++) layer.Add(start + j);
+            // vị trí tương đối trong lớp: -0.5..0.5, 0 là chính giữa; cùng khoảng cách thì bên phải (dương) ra trước
+            layer.Sort((a, b) =>
+            {
+                float pa = ((a - start) + 0.5f) / m - 0.5f;
+                float pb = ((b - start) + 0.5f) / m - 0.5f;
+                float aa = Mathf.Abs(pa), ab = Mathf.Abs(pb);
+                if (Mathf.Abs(aa - ab) < 0.00001f) return pb.CompareTo(pa);
+                return aa.CompareTo(ab);
+            });
+            order.AddRange(layer);
+        }
+        deployOrder = order.ToArray();
+        deployOrderFor = n;
+    }
+
+    /// <summary>Chỗ đứng (chỉ số trong đội hình) cho thanh kiếm sắp sinh ra.</summary>
+    private int SlotForNewSword()
+    {
+        EnsureDeployOrder();
+        int k = swords.Count;
+        return k < deployOrder.Length ? deployOrder[k] : k;
+    }
+
+    /// <summary>Số kiếm mục tiêu đổi (đổi cảnh giới) thì xếp lại chỗ cho các kiếm đang có.</summary>
+    private void EnsureDeployOrder()
+    {
+        int n = Mathf.Max(1, swordCount);
+        if (deployOrderFor == n) return;
+        BuildDeployOrder(n);
+        for (int i = 0; i < swords.Count; i++)
+            swords[i].Index = i < deployOrder.Length ? deployOrder[i] : i;
+    }
+
     private IFormation GetFormation(FormationType type)
     {
         switch (type)
@@ -898,7 +951,7 @@ public class SwordSwarm : MonoBehaviour
                 swordCount = swords.Count;
                 return;
             }
-            s.Init(this, swords.Count);
+            s.Init(this, SlotForNewSword());
             swords.Add(s);
             nextDeployTime += deployInterval;
             if (nextDeployTime < Time.time - deployInterval) nextDeployTime = Time.time;   // tụt khung hình thì đừng dồn cục

@@ -24,6 +24,7 @@ public class PlayerMelee : MonoBehaviour
         [Tooltip("Sát thương của đòn này.")]
         [Min(0f)] public float damage = 10f;
 
+        [Header("Mốc trong clip (chỉ phụ thuộc file anim — đổi clip thì chỉ sửa ba số này)")]
         [Tooltip("Giây trong clip mà đòn bắt đầu phát (bỏ đoạn dạo đầu của clip cho ra đòn nhanh).")]
         [Min(0f)] public float clipStart = 0.1f;
 
@@ -33,7 +34,14 @@ public class PlayerMelee : MonoBehaviour
         [Tooltip("Giây trong clip mà đòn kết thúc (hết đà đánh, bấm tiếp là nối được đòn sau).")]
         [Min(0.05f)] public float clipEnd = 0.7f;
 
-        [Tooltip("Tốc độ phát anim (1 = bình thường, 1.5 = nhanh gấp rưỡi). Thời gian thật của đòn = (kết thúc - bắt đầu) / tốc độ.")]
+        [Header("Thời gian thật (giây tính từ lúc bấm — giữ nguyên khi đổi clip)")]
+        [Tooltip("Tổng thời gian thật của đòn, từ lúc bấm tới lúc nối được đòn sau (giây). Đặt 0 = kiểu cũ: tính từ 'Tốc độ phát anim' bên dưới (dùng cho quyền cước).")]
+        [Min(0f)] public float duration = 0f;
+
+        [Tooltip("Thời gian thật từ lúc bấm tới khoảnh khắc trúng đòn (giây). Chỉ dùng khi 'Tổng thời gian thật' > 0. Anim tự được tăng/giảm tốc để mốc 'trúng đòn' của clip rơi đúng giây này.")]
+        [Min(0f)] public float hitTime = 0.25f;
+
+        [Tooltip("Tốc độ phát anim (1 = bình thường, 1.5 = nhanh gấp rưỡi). Chỉ dùng khi 'Tổng thời gian thật' = 0 (kiểu cũ: thời gian thật = (kết thúc - bắt đầu) / tốc độ).")]
         [Min(0.1f)] public float speed = 1.4f;
 
         [Tooltip("Quãng bước tới trước khi ra đòn (mét).")]
@@ -42,11 +50,12 @@ public class PlayerMelee : MonoBehaviour
         [Tooltip("Đẩy lùi mục tiêu trúng đòn (mét). 0 = không đẩy.")]
         [Min(0f)] public float knockback = 0f;
 
-        [Tooltip("Chỉ dùng khi cầm kiếm: giây trong clip mà vệt chém bắt đầu hiện (lúc lưỡi kiếm bắt đầu vung nhanh).")]
-        [Min(0f)] public float trailStart = 0f;
+        [Header("Cầm kiếm")]
+        [Tooltip("Vệt chém bắt đầu hiện trước khoảnh khắc trúng đòn bao nhiêu giây thật.")]
+        [Min(0f)] public float trailBeforeHit = 0.12f;
 
-        [Tooltip("Chỉ dùng khi cầm kiếm: giây trong clip mà vệt chém ngừng vẽ thêm (lưỡi kiếm hết vung).")]
-        [Min(0f)] public float trailEnd = 0f;
+        [Tooltip("Vệt chém ngừng vẽ thêm sau khoảnh khắc trúng đòn bao nhiêu giây thật.")]
+        [Min(0f)] public float trailAfterHit = 0.08f;
 
         [Tooltip("Chỉ dùng khi cầm kiếm: bật thì nhát này cầm kiếm theo tư thế riêng bên dưới thay vì tư thế 'Cầm chém' chung (dùng cho nhát đâm, nơi hai tay xa nhau).")]
         public bool useGripOverride = false;
@@ -95,13 +104,13 @@ public class PlayerMelee : MonoBehaviour
     [SerializeField, Range(10f, 360f)] private float arc = 90f;
 
     [Header("Cầm kiếm")]
-    [Tooltip("Ba nhát chém: Chem1 (18 sát thương), Chem2 (20), Chem3 (32, đẩy lùi 2m). Thời gian thật mỗi nhát khoảng 0.5 / 0.6 / 0.9 giây.")]
+    [Tooltip("Ba nhát chém: Chem1 (18 sát thương), Chem2 (20), Chem3 (32, đẩy lùi 2m). Thời gian thật mỗi nhát 0.5 / 0.6 / 0.9 giây, trúng đòn sau 0.25 / 0.38 / 0.54 giây. Đổi clip chém: chỉ sửa 3 'Mốc trong clip' của từng nhát, không đụng sát thương và thời gian thật.")]
     [SerializeField] private Step[] swordSteps =
     {
         // Đo từ chuyển động tay phải thật của 3 clip Great Sword Slash / Thrust Slash (Mixamo)
-        new Step { stateName = "Chem1", damage = 18f, clipStart = 0.30f, clipHit = 0.62f, clipEnd = 0.92f, speed = 1.25f, lungeDistance = 0.3f, trailStart = 0.48f, trailEnd = 0.82f },
-        new Step { stateName = "Chem2", damage = 20f, clipStart = 0.30f, clipHit = 0.73f, clipEnd = 1.00f, speed = 1.15f, lungeDistance = 0.3f, trailStart = 0.55f, trailEnd = 0.90f },
-        new Step { stateName = "Chem3", damage = 32f, clipStart = 0.20f, clipHit = 0.76f, clipEnd = 1.15f, speed = 1.05f, lungeDistance = 0.55f, knockback = 2f, trailStart = 0.60f, trailEnd = 0.95f, useGripOverride = true, gripPosition = new Vector3(0f, 0.08f, 0.03f), gripEuler = new Vector3(0f, 0f, 0f) },
+        new Step { stateName = "Chem1", damage = 18f, clipStart = 0.30f, clipHit = 0.62f, clipEnd = 0.92f, duration = 0.5f, hitTime = 0.25f, lungeDistance = 0.3f },
+        new Step { stateName = "Chem2", damage = 20f, clipStart = 0.30f, clipHit = 0.73f, clipEnd = 1.00f, duration = 0.6f, hitTime = 0.38f, lungeDistance = 0.3f },
+        new Step { stateName = "Chem3", damage = 32f, clipStart = 0.20f, clipHit = 0.76f, clipEnd = 1.15f, duration = 0.9f, hitTime = 0.54f, lungeDistance = 0.55f, knockback = 2f, useGripOverride = true, gripPosition = new Vector3(0f, 0.08f, 0.03f), gripEuler = new Vector3(2.86f, 59.33f, 0f) },
     };
 
     [Tooltip("Tầm chém của kiếm phía trước mặt (mét).")]
@@ -137,6 +146,7 @@ public class PlayerMelee : MonoBehaviour
     private float stepElapsed;         // thời gian thật đã trôi qua trong đòn hiện tại
     private float stepDuration;        // thời gian thật của đòn hiện tại
     private float hitDelay;            // thời gian thật từ lúc bắt đầu đòn tới khi trúng
+    private float speedAfterHit;       // tốc độ phát anim sau khoảnh khắc trúng (khi dùng thời gian thật)
     private bool hitDone;
     private bool chainQueued;
     private float cooldownUntil;
@@ -219,6 +229,7 @@ public class PlayerMelee : MonoBehaviour
         if (!hitDone && stepElapsed >= hitDelay)
         {
             hitDone = true;
+            if (animator != null) animator.SetFloat(AtkSpeedId, speedAfterHit);
             DoHit(current);
         }
 
@@ -263,9 +274,22 @@ public class PlayerMelee : MonoBehaviour
         Step s = activeSteps[index];
         stepIndex = index;
         stepElapsed = 0f;
-        float speed = Mathf.Max(0.1f, s.speed);
-        stepDuration = Mathf.Max(0.05f, (s.clipEnd - s.clipStart) / speed);
-        hitDelay = Mathf.Clamp((s.clipHit - s.clipStart) / speed, 0f, stepDuration);
+        float speed;
+        if (s.duration > 0.05f)
+        {
+            // Thời gian thật cố định: tăng/giảm tốc anim để mốc "trúng đòn" của clip rơi đúng hitTime và mốc "kết thúc" rơi đúng duration
+            stepDuration = s.duration;
+            hitDelay = Mathf.Clamp(s.hitTime, 0.02f, stepDuration - 0.02f);
+            speed = Mathf.Max(0.1f, (s.clipHit - s.clipStart) / hitDelay);
+            speedAfterHit = Mathf.Max(0.1f, (s.clipEnd - s.clipHit) / Mathf.Max(0.02f, stepDuration - hitDelay));
+        }
+        else
+        {
+            speed = Mathf.Max(0.1f, s.speed);
+            stepDuration = Mathf.Max(0.05f, (s.clipEnd - s.clipStart) / speed);
+            hitDelay = Mathf.Clamp((s.clipHit - s.clipStart) / speed, 0f, stepDuration);
+            speedAfterHit = speed;
+        }
         hitDone = false;
         chainQueued = false;
 
@@ -287,11 +311,10 @@ public class PlayerMelee : MonoBehaviour
         StepStarted?.Invoke(index);
     }
 
-    /// <summary>Vệt chém chỉ hiện trong khoảng giây [trailStart, trailEnd] của clip.</summary>
+    /// <summary>Vệt chém chỉ hiện quanh khoảnh khắc trúng đòn (theo thời gian thật, không phụ thuộc clip).</summary>
     private void UpdateSlashTrail(Step s)
     {
-        float clipTime = s.clipStart + stepElapsed * Mathf.Max(0.1f, s.speed);
-        SetTrail(clipTime >= s.trailStart && clipTime <= s.trailEnd);
+        SetTrail(stepElapsed >= hitDelay - s.trailBeforeHit && stepElapsed <= hitDelay + s.trailAfterHit);
     }
 
     private void SetTrail(bool on)
