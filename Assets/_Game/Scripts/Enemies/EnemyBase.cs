@@ -374,6 +374,16 @@ public abstract class EnemyBase : MonoBehaviour
         return player != null ? RealmRules.DamageMultiplier(MajorRealm, player.MajorRealm) : 1f;
     }
 
+    /// <summary>Làm choáng seconds giây (sét của Phá Không): giống loạng choạng nhưng thời gian do bên gọi quyết định.</summary>
+    public void Stun(float seconds)
+    {
+        if (state == EnemyState.Dead || seconds <= 0f) return;
+        if (state != EnemyState.Staggered) stateBeforeStagger = state == EnemyState.Patrol || state == EnemyState.Detect ? EnemyState.Attack : state;
+        staggerEnd = Mathf.Max(staggerEnd, Time.time + seconds);
+        CancelActions();
+        SetState(EnemyState.Staggered);
+    }
+
     /// <summary>Vào trạng thái loạng choạng trong staggerTime giây.</summary>
     protected void Stagger()
     {

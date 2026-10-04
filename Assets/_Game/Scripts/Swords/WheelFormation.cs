@@ -39,6 +39,9 @@ public class WheelFormation : IFormation
     [Tooltip("Số lần dao động mỗi giây.")]
     [Min(0f)] public float wobbleFrequency = 0.7f;
 
+    /// <summary>Khoảng đẩy thêm ra sau lưng (mét), do SwordSwarm đặt khi cánh Phong Lôi Sí mở để Kiếm Luân không cắm vào cánh.</summary>
+    [NonSerialized] public float extraBack;
+
     public string DisplayName => "Kiếm Luân";
 
     public bool ContactDamage => false;
@@ -46,7 +49,7 @@ public class WheelFormation : IFormation
     /// <summary>Tâm vầng kiếm trong thế giới (không tính xoay): sau lưng, giữa hai bả vai.</summary>
     public Vector3 GetCenter(in FormationContext ctx)
     {
-        return ctx.origin - (ctx.body * Vector3.forward) * behindDistance + Vector3.up * heightOffset;
+        return ctx.origin - (ctx.body * Vector3.forward) * (behindDistance + extraBack) + Vector3.up * heightOffset;
     }
 
     /// <summary>Khoảng cách xa nhất từ tâm tới mũi kiếm (mét) với thanh kiếm có mũi cách pivot tipOffset, thu nhỏ theo swordScale.</summary>

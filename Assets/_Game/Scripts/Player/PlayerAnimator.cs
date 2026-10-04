@@ -389,7 +389,8 @@ public class PlayerAnimator : MonoBehaviour
     private void UpdateUpperLayer()
     {
         if (upperLayer < 0) return;
-        bool wantUpper = !(melee != null && melee.IsAttacking) && !(stats != null && !stats.IsAlive);
+        // Chém khi đang bay phát ngay ở lớp thân trên (thân dưới giữ dáng bay) nên lớp này vẫn bật
+        bool wantUpper = !(melee != null && melee.IsAttacking && !melee.AttackInFlight) && !(stats != null && !stats.IsAlive);
         upperWeight = Mathf.MoveTowards(upperWeight, wantUpper ? 1f : 0f, upperLayerBlendSpeed * Time.deltaTime);
         animator.SetLayerWeight(upperLayer, upperWeight);
     }

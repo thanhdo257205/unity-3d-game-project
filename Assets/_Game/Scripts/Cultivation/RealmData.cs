@@ -22,6 +22,9 @@ public class RealmData : ScriptableObject
     [Tooltip("Đại cảnh giới: 0 = Luyện Khí, 1 = Trúc Cơ, 2 = Kết Đan, 3 = Nguyên Anh. Chênh một đại cảnh giới thì sát thương nhận x2.5 và gây ra x0.4 (Phần 5.3).")]
     [SerializeField, Min(0)] private int majorRealm;
 
+    [Tooltip("Khoảng cách Phá Không (mét): quãng xuyên không gian xa nhất của Phong Lôi Sí. Luyện Khí 1-3: 15, 4-6: 25, 7-9: 40; Trúc Cơ: 60 / 80 / 100; Kết Đan: 150 / 200 / 250; Nguyên Anh: 400.")]
+    [SerializeField, Min(0f)] private float phaKhongDistance = 15f;
+
     [Tooltip("Ghi chú mở khóa theo bảng thiết kế (chỉ để tham khảo, chưa khóa tính năng nào).")]
     [SerializeField, TextArea] private string unlockNote;
 
@@ -39,6 +42,9 @@ public class RealmData : ScriptableObject
 
     /// <summary>Pháp lực tối đa.</summary>
     public float MaxMana => maxMana;
+
+    /// <summary>Khoảng cách Phá Không (mét) của cảnh giới này.</summary>
+    public float PhaKhongDistance => phaKhongDistance;
 
     /// <summary>Ghi chú mở khóa.</summary>
     public string UnlockNote => unlockNote;

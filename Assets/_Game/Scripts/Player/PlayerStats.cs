@@ -219,6 +219,12 @@ public class PlayerStats : MonoBehaviour
         return true;
     }
 
+    /// <summary>Cho bất tử thêm seconds giây (Phá Không: đang xuyên không gian thì không nhận sát thương).</summary>
+    public void GrantInvulnerability(float seconds)
+    {
+        invulnerableUntil = Mathf.Max(invulnerableUntil, Time.time + seconds);
+    }
+
     /// <summary>Hồi sinh: đầy máu, đầy pháp lực, xóa Kiếm ý.</summary>
     public void Revive()
     {

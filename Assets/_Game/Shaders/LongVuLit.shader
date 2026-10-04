@@ -1,6 +1,7 @@
 // Lông vũ của Phong Lôi Sí: shader URP đổ sáng đầy đủ kiểu Lit (PBR, bóng, ánh sáng phụ) nhưng đọc MÀU TỪ VERTEX COLOR
 // (màu gradient của cánh được bake sẵn vào đỉnh) nhân với _BaseColor, hình lông (alpha cắt) lấy từ texture alpha (_BaseMap.a),
-// và có EMISSION XANH LỤC Ở MÉP LÔNG (dải alpha ngay trên ngưỡng cắt) sáng lên theo "Độ sáng mép" (script cánh đặt theo nhịp vỗ).
+// và có EMISSION XANH LỤC Ở MÉP LÔNG: dải sáng liền, mảnh, mượt dọc hai mép và đầu mỗi chiếc lông. Độ gần mép được bake sẵn vào
+// KÊNH ALPHA của vertex color (0 ở giữa lông, 1 ở mép/đầu lông), nội suy mượt qua mặt lông; "Độ sáng mép" do script cánh đặt theo nhịp vỗ.
 // URP Lit chuẩn không đọc vertex color nên cần shader riêng này. Hai mặt, không đổ bóng.
 Shader "PhamKiemLuc/LongVuLit"
 {
@@ -13,8 +14,8 @@ Shader "PhamKiemLuc/LongVuLit"
         _Cutoff("Ngưỡng alpha", Range(0, 1)) = 0.5
         _Metallic("Kim loại", Range(0, 1)) = 0.15
         _Smoothness("Độ bóng", Range(0, 1)) = 0.45
-        [HDR] _EdgeEmission("Màu emission mép lông", Color) = (0.25, 1.6, 0.7, 1)
-        _EdgeWidth("Bề rộng mép sáng", Range(0.01, 0.5)) = 0.14
+        [HDR] _EdgeEmission("Màu emission mép lông", Color) = (0.2, 1.1, 0.5, 1)
+        _EdgePower("Độ mảnh của dải mép (cao = mảnh)", Range(1, 24)) = 14
         _EdgeIntensity("Độ sáng mép (nhân)", Float) = 1
     }
 
@@ -53,7 +54,7 @@ Shader "PhamKiemLuc/LongVuLit"
                 float _Metallic;
                 float _Smoothness;
                 float4 _EdgeEmission;
-                float _EdgeWidth;
+                float _EdgePower;
                 float _EdgeIntensity;
             CBUFFER_END
 
@@ -105,8 +106,8 @@ Shader "PhamKiemLuc/LongVuLit"
                 s.alpha = 1;
                 s.normalTS = half3(0, 0, 1);
                 // Mép lông: dải alpha ngay trên ngưỡng cắt phát sáng
-                half edge = 1.0 - saturate((a - _Cutoff) / max(_EdgeWidth, 0.001));
-                s.emission = _EdgeEmission.rgb * (edge * edge * _EdgeIntensity);
+                half edge = pow(saturate(i.color.a), _EdgePower);
+                s.emission = _EdgeEmission.rgb * (edge * _EdgeIntensity);
 
                 InputData d = (InputData)0;
                 d.positionWS = i.positionWS;

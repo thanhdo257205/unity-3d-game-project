@@ -92,8 +92,43 @@ public class PlayerController : MonoBehaviour
         controller = GetComponent<CharacterController>();
     }
 
+    /// <summary>
+    /// Đang bay (Phong Lôi Sí): script bay lo toàn bộ di chuyển qua <see cref="FlightMove"/>, đi bộ/nhảy/trọng lực của script này tạm nghỉ.
+    /// </summary>
+    public bool FlightActive { get; set; }
+
+    /// <summary>
+    /// Di chuyển nhân vật theo vận tốc velocity (mét/giây) trong dt giây khi đang bay, có va chạm như đi bộ.
+    /// Cập nhật cả trạng thái chạm đất và vận tốc để Animator và các script khác đọc được.
+    /// </summary>
+    public void FlightMove(Vector3 velocity, float dt)
+    {
+        if (!controller.enabled) return;
+        controller.Move(velocity * dt);
+        IsGrounded = controller.isGrounded;
+        horizontalVelocity = new Vector3(velocity.x, 0f, velocity.z);
+        verticalVelocity = velocity.y;
+        if (IsGrounded) lastGroundedTime = Time.time;
+    }
+
+    /// <summary>Xoay thân nhân vật dần về hướng nhìn ngang yaw (độ) với tốc độ speed (độ/giây).</summary>
+    public void RotateToYaw(float yaw, float speed)
+    {
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.Euler(0f, yaw, 0f), speed * Time.deltaTime);
+    }
+
+    /// <summary>Đặt vận tốc thẳng đứng (dùng khi hạ cánh/hết bay để chuyển giao cho trọng lực).</summary>
+    public void SetVerticalVelocity(float v) { verticalVelocity = v; }
+
+    /// <summary>Đặt vận tốc ngang (dùng khi hết bay để giữ đà).</summary>
+    public void SetHorizontalVelocity(Vector3 v) { horizontalVelocity = new Vector3(v.x, 0f, v.z); }
+
+    /// <summary>Bật/tắt CharacterController (Phá Không: nhân vật vô hình lướt đi không va chạm).</summary>
+    public void SetControllerEnabled(bool on) { controller.enabled = on; }
+
     private void Update()
     {
+        if (FlightActive) { IsRunning = false; return; }
         bool moveBlocked = ControlLocked || MoveLocked;
         Vector2 input = moveBlocked ? Vector2.zero : ReadMoveInput();
         Keyboard kb = Keyboard.current;

@@ -63,6 +63,9 @@ public class Hotbar : MonoBehaviour
     /// <summary>Báo khi dùng xong một vật phẩm (đan dược). HUD hiện dòng thông báo.</summary>
     public event Action<ItemData> ItemUsed;
 
+    /// <summary>Báo khi bấm chuột trái lúc đang chọn ô chứa Pháp bảo (bật/tắt pháp bảo đó).</summary>
+    public event Action<ItemData> PhapBaoActivated;
+
     /// <summary>Chỉ số ô đang chọn (0-5).</summary>
     public int SelectedIndex => selected;
 
@@ -178,6 +181,13 @@ public class Hotbar : MonoBehaviour
     public bool TryUseSelected()
     {
         ItemData item = SelectedItem;
+        if (item != null && item.type == ItemType.PhapBao)
+        {
+            // Pháp bảo: chuột trái bật/tắt, việc cụ thể do script của pháp bảo (ví dụ PhongLoiSi) lo
+            if (stats == null || !stats.IsAlive) return false;
+            PhapBaoActivated?.Invoke(item);
+            return true;
+        }
         if (item == null || item.type != ItemType.DanDuoc) return false;
         if (stats == null || !stats.IsAlive) return false;
         if (Time.time < nextUseTime) return false;

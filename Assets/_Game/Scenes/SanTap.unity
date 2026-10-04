@@ -7509,6 +7509,7 @@ MonoBehaviour:
   blockShakeTime: 0.15
   blockSparks: {fileID: 92187928}
   blockSparkCount: 8
+  wheelPushSpeed: 2
 --- !u!4 &1579720756
 Transform:
   m_ObjectHideFlags: 0
@@ -8504,6 +8505,61 @@ MonoBehaviour:
   patrolRadius: 10
   patrolPeriod: 8
   patrolSpread: 1.8
+--- !u!1 &1877347388
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1877347390}
+  - component: {fileID: 1877347389}
+  m_Layer: 0
+  m_Name: PhongLoiSi_Canh
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1877347389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1877347388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7c475b29734bee4b98bd078250dc346, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WingVisual
+  chestBone: {fileID: 0}
+  bodyRoot: {fileID: 0}
+  modelPrefab: {fileID: 8995385251455372924, guid: 49874f7d3f11b504a9a3fb44a15288fa, type: 3}
+  rootOffset: {x: 0, y: -0.1, z: -0.32}
+  openTime: 0.5
+  closeTime: 0.4
+  blendTime: 0.3
+  minFlapAmplitude: 8
+  clipFlapHz: 0.83
+  emissionBase: 0.6
+  emissionPulse: 1.1
+--- !u!4 &1877347390
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1877347388}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2127460590}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1964290696
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -8599,6 +8655,7 @@ MonoBehaviour:
   swarm: {fileID: 1579720755}
   life: {fileID: 2127460594}
   hotbar: {fileID: 2127460597}
+  wings: {fileID: 2127460599}
   fontAsset: {fileID: 11400000, guid: 0148cf6b57cd5884ba9c564766c4062a, type: 2}
   healthColor: {r: 0.86, g: 0.18, b: 0.16, a: 1}
   manaColor: {r: 0.2, g: 0.52, b: 0.95, a: 1}
@@ -9009,6 +9066,7 @@ GameObject:
   - component: {fileID: 2127460594}
   - component: {fileID: 2127460597}
   - component: {fileID: 2127460598}
+  - component: {fileID: 2127460599}
   m_Layer: 0
   m_Name: NhanVat
   m_TagString: Player
@@ -9030,6 +9088,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1629597276}
+  - {fileID: 1877347390}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2127460591
@@ -9186,6 +9245,9 @@ MonoBehaviour:
   hitFeedback: {fileID: 1579720757}
   hotbar: {fileID: 2127460597}
   weapon: {fileID: 2127460598}
+  wings: {fileID: 0}
+  upperLayerName: UpperBody
+  upperEmptyState: Trong
   unarmedSteps:
   - stateName: Dam1
     damage: 10
@@ -9308,8 +9370,8 @@ MonoBehaviour:
     count: 1
   - item: {fileID: 11400000, guid: bd15dd25f76ca3247b227c4a4179ec07, type: 2}
     count: 3
-  - item: {fileID: 0}
-    count: 0
+  - item: {fileID: 11400000, guid: 0777dca649d459c4dae1239b61a373cb, type: 2}
+    count: 1
   - item: {fileID: 0}
     count: 0
   - item: {fileID: 0}
@@ -9352,6 +9414,67 @@ MonoBehaviour:
   flashLight: {fileID: 1231490575}
   flashLightIntensity: 6
   flashLightTime: 0.2
+--- !u!114 &2127460599
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127460589}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c069b122bf3323342a19fd907369b98b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhongLoiSi
+  wingItem: {fileID: 11400000, guid: 0777dca649d459c4dae1239b61a373cb, type: 2}
+  visual: {fileID: 1877347389}
+  lightning: {fileID: 0}
+  swarm: {fileID: 1579720755}
+  feedback: {fileID: 1579720757}
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 256
+  activationCost: 25
+  wheelPush: 0.5
+  openShake: 0.03
+  groundDrain: 1
+  flyDrain: 4
+  boostDrain: 9
+  flutterTime: 1
+  takeoffHoldTime: 0.3
+  doubleTapWindow: 0.3
+  landingDescendSpeed: 8
+  takeoffLift: 6
+  cruiseSpeed: 12
+  boostSpeed: 24
+  climbSpeed: 8
+  acceleration: 20
+  deceleration: 14
+  turnSpeed: 540
+  ceiling: 60
+  clipPitch: 66
+  hoverPitch: 0
+  cruisePitch: 50
+  boostPitch: 75
+  backwardPitch: -12
+  maxBank: 25
+  poseSmoothTime: 0.3
+  pivotHeight: 1
+  groundFlap: {x: 6, y: 0.5}
+  hoverFlap: {x: 12, y: 0.7}
+  climbFlap: {x: 24, y: 1.5}
+  cruiseFlap: {x: 18, y: 0.9}
+  boostFlap: {x: 34, y: 0.55}
+  levelGround: 0.3
+  levelFly: 0.65
+  levelBoost: 1
+  flightExtraDistance: 1.5
+  flightExtraFov: 8
+  boostExtraFov: 6
+  boostExtraDistance: 0.8
+  cameraSmoothTime: 0.45
+  fallSafeHeight: 12
+  fallDamagePerMeter: 4
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

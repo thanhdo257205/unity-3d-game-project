@@ -32,12 +32,13 @@ Material:
     - _Brighten: 1.6
     - _Cutoff: 0.5
     - _EdgeIntensity: 1
+    - _EdgePower: 14
     - _EdgeWidth: 0.14
     - _Metallic: 0.15
     - _Smoothness: 0.45
     - _VertexColorStrength: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _EdgeEmission: {r: 0.25, g: 1.6, b: 0.7, a: 1}
+    - _EdgeEmission: {r: 0.2, g: 1.1, b: 0.5, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

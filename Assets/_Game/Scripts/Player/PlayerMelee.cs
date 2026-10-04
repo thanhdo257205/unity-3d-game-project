@@ -86,6 +86,15 @@ public class PlayerMelee : MonoBehaviour
     [Tooltip("Vũ khí cầm tay: biết kiếm đã tới tay chưa, và bật/tắt vệt chém. Để trống thì tự tìm.")]
     [SerializeField] private HeldWeapon weapon;
 
+    [Tooltip("Phong Lôi Sí: đang bay thì vẫn chém được, động tác tay phát ở lớp thân trên (trạng thái '<tên đòn>_Bay') để thân dưới giữ dáng bay. Để trống thì tự tìm.")]
+    [SerializeField] private PhongLoiSi wings;
+
+    [Tooltip("Tên lớp Animator chỉ điều khiển thân trên (chém khi đang bay).")]
+    [SerializeField] private string upperLayerName = "UpperBody";
+
+    [Tooltip("Tên trạng thái rỗng của lớp thân trên (để trả quyền lại cho dáng bay sau khi chém).")]
+    [SerializeField] private string upperEmptyState = "Trong";
+
     [Header("Tay không (ô trống)")]
     [Tooltip("Ba đòn theo thứ tự: Dam1 (10 sát thương), Dam2 (12), Da (20, đẩy lùi 1.5m).")]
     [FormerlySerializedAs("steps")]
@@ -154,6 +163,11 @@ public class PlayerMelee : MonoBehaviour
     /// <summary>Đang trong chuỗi đòn (quyền cước hoặc chém kiếm) không.</summary>
     public bool IsAttacking => stepIndex >= 0;
 
+    /// <summary>Đòn đang ra được bắt đầu lúc đang bay (phát ở lớp thân trên, không khóa đi, không bước tới).</summary>
+    public bool AttackInFlight => IsAttacking && attackInFlight;
+
+    private bool attackInFlight;
+
     /// <summary>Đòn đang ra là chém kiếm (false = tay không).</summary>
     public bool IsSwordAttack => IsAttacking && usingSword;
 
@@ -173,6 +187,7 @@ public class PlayerMelee : MonoBehaviour
         if (animator == null) animator = GetComponentInChildren<Animator>();
         if (hotbar == null) hotbar = GetComponent<Hotbar>();
         if (weapon == null) weapon = GetComponent<HeldWeapon>();
+        if (wings == null) wings = GetComponent<PhongLoiSi>();
     }
 
     private void OnEnable()
@@ -197,6 +212,9 @@ public class PlayerMelee : MonoBehaviour
     // Đổi ô giữa chừng thì hủy đòn đang ra
     private void OnSelectionChanged(int index) { if (IsAttacking) EndAttack(false); }
 
+    /// <summary>Hủy chuỗi đòn đang ra (cất cánh giữa chừng một đòn dưới đất...).</summary>
+    public void CancelAttack() { if (IsAttacking) EndAttack(false); }
+
     /// <summary>Ra lệnh đánh như vừa bấm chuột trái (dùng để kiểm thử qua code).</summary>
     public void PressAttack() { queuedPress = true; }
 
@@ -210,6 +228,7 @@ public class PlayerMelee : MonoBehaviour
 
         if (player.IsGrounded) lastGroundedTime = Time.time;
         bool onGround = Time.time - lastGroundedTime <= groundGrace;   // chịu được vài khung hình "hụt đất" khi đi xuống bậc
+        if (wings != null && wings.IsFlying) onGround = true;           // đang bay thì vẫn chém được
 
         if (!IsAttacking)
         {
@@ -293,8 +312,12 @@ public class PlayerMelee : MonoBehaviour
         hitDone = false;
         chainQueued = false;
 
-        player.MoveLocked = true;
-        player.FaceCameraForAttack = true;
+        attackInFlight = wings != null && wings.IsFlying;
+        if (!attackInFlight)
+        {
+            player.MoveLocked = true;
+            player.FaceCameraForAttack = true;
+        }
         if (weapon != null)
             weapon.SetSlashPose(sword, sword && s.useGripOverride, new HeldWeapon.GripPose { position = s.gripPosition, euler = s.gripEuler });
         SetTrail(false);
@@ -302,12 +325,21 @@ public class PlayerMelee : MonoBehaviour
         if (animator != null)
         {
             animator.SetFloat(AtkSpeedId, speed);
-            animator.CrossFadeInFixedTime(s.stateName, chained ? blendTime : 0.08f, 0, s.clipStart);
+            if (attackInFlight)
+            {
+                // Đang bay: chỉ tay chém (lớp thân trên), thân dưới giữ dáng bay
+                int layer = animator.GetLayerIndex(upperLayerName);
+                animator.CrossFadeInFixedTime(s.stateName + "_Bay", chained ? blendTime : 0.08f, layer, s.clipStart);
+            }
+            else animator.CrossFadeInFixedTime(s.stateName, chained ? blendTime : 0.08f, 0, s.clipStart);
         }
 
-        // Bước nhẹ tới trước theo hướng camera đang nhìn
-        Vector3 dir = AimDirection();
-        player.Lunge(dir, s.lungeDistance, Mathf.Max(0.05f, hitDelay));
+        // Bước nhẹ tới trước theo hướng camera đang nhìn (đang bay thì không)
+        if (!attackInFlight)
+        {
+            Vector3 dir = AimDirection();
+            player.Lunge(dir, s.lungeDistance, Mathf.Max(0.05f, hitDelay));
+        }
         StepStarted?.Invoke(index);
     }
 
@@ -339,7 +371,16 @@ public class PlayerMelee : MonoBehaviour
             player.FaceCameraForAttack = false;
         }
         if (was && animator != null && stats != null && stats.IsAlive)
-            animator.CrossFadeInFixedTime(idleState, smoothExit ? exitBlendTime : 0.1f, 0);
+        {
+            if (attackInFlight)
+            {
+                // Chém khi bay: trả tay về dáng bay (lớp thân trên về trạng thái rỗng), không đụng lớp nền
+                int layer = animator.GetLayerIndex(upperLayerName);
+                if (layer >= 0) animator.CrossFadeInFixedTime(upperEmptyState, smoothExit ? exitBlendTime : 0.1f, layer);
+            }
+            else animator.CrossFadeInFixedTime(idleState, smoothExit ? exitBlendTime : 0.1f, 0);
+        }
+        attackInFlight = false;
     }
 
     /// <summary>Hướng nhìn ngang của camera (mặt nhân vật sẽ quay theo hướng này).</summary>

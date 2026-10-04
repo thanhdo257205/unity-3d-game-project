@@ -542,7 +542,16 @@ public class SwordSwarm : MonoBehaviour
         float target = viewFromBehind ? behindOpacity : 1f;
         float rate = (1f - behindOpacity) / Mathf.Max(0.01f, opacityFadeTime);
         FormationOpacity = Mathf.MoveTowards(FormationOpacity, target, rate * dt);
+
+        // Cánh Phong Lôi Sí mở thì đẩy Kiếm Luân ra sau thêm một đoạn (mượt)
+        wheel.extraBack = Mathf.MoveTowards(wheel.extraBack, WheelPushTarget, Mathf.Max(0.1f, wheelPushSpeed) * dt);
     }
+
+    /// <summary>Khoảng (mét) Kiếm Luân cần lùi thêm ra sau lưng. PhongLoiSi đặt: bằng "Đẩy Kiếm Luân" khi cánh mở, 0 khi cánh đóng.</summary>
+    public float WheelPushTarget { get; set; }
+
+    [Tooltip("Tốc độ Kiếm Luân dịch ra sau/vào lại khi cánh Phong Lôi Sí mở/đóng (mét/giây).")]
+    [SerializeField, Min(0.1f)] private float wheelPushSpeed = 2f;
 
     // ================= Đầu vào =================
 

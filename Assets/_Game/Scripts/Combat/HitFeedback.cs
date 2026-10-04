@@ -56,6 +56,15 @@ public class HitFeedback : MonoBehaviour
         def.ImpulseDuration = 0.22f;
     }
 
+    /// <summary>Rung camera một cú với độ giật amplitude (mét), không dừng hình. Phong Lôi Sí dùng khi mở cánh, Phá Không.</summary>
+    public void Shake(float amplitude)
+    {
+        if (!enableShake || impulseSource == null || amplitude <= 0f) return;
+        Vector3 dir = Random.onUnitSphere;
+        dir.z *= 0.3f;
+        impulseSource.GenerateImpulseWithVelocity(dir.normalized * amplitude);
+    }
+
     /// <summary>Gọi khi một đòn trúng. killed = đòn này làm mục tiêu hết máu.</summary>
     public void OnHit(bool killed)
     {

@@ -33,6 +33,9 @@ public class HUD : MonoBehaviour
     [Tooltip("Thanh ô đồ của người chơi (đối tượng NhanVat).")]
     [SerializeField] private Hotbar hotbar;
 
+    [Tooltip("Pháp bảo Phong Lôi Sí (đối tượng NhanVat): ô của nó có viền sáng khi cánh đang mở, và pháp lực cánh rút được cộng vào con số tiêu hao.")]
+    [SerializeField] private PhongLoiSi wings;
+
     [Header("Phông chữ")]
     [Tooltip("Phông TextMeshPro dùng cho mọi chữ trên màn hình (phải có đủ dấu tiếng Việt). Mặc định là Inter (Assets/_Game/UI/Fonts/Inter_Regular_SDF). Để trống thì dùng phông mặc định của TextMeshPro.")]
     [SerializeField] private TMP_FontAsset fontAsset;
@@ -161,6 +164,7 @@ public class HUD : MonoBehaviour
         public TextMeshProUGUI count;
         public TextMeshProUGUI fallback;     // chữ thay biểu tượng khi vật phẩm chưa có hình
         public GameObject selFrame;
+        public GameObject activeFrame;       // viền sáng xanh lục khi pháp bảo của ô đang bật (cánh Phong Lôi Sí mở)
     }
     private readonly HotbarSlotUI[] hotSlots = new HotbarSlotUI[Hotbar.SlotCount];
     private TextMeshProUGUI itemNameText;
@@ -414,6 +418,15 @@ public class HUD : MonoBehaviour
             AddFrame(sel, new Color(1f, 0.9f, 0.5f, 1f), 4f);
             ui.selFrame = sel.gameObject;
 
+            // Viền xanh lục mảnh khi pháp bảo trong ô đang bật
+            RectTransform act = new GameObject("VienBat", typeof(RectTransform)).GetComponent<RectTransform>();
+            act.SetParent(rt, false);
+            act.anchorMin = Vector2.zero; act.anchorMax = Vector2.one;
+            act.offsetMin = new Vector2(-6f, -6f); act.offsetMax = new Vector2(6f, 6f);
+            AddFrame(act, new Color(0.35f, 1f, 0.6f, 0.95f), 3f);
+            ui.activeFrame = act.gameObject;
+            act.gameObject.SetActive(false);
+
             Image icon = NewObject<Image>("BieuTuong", rt);
             icon.raycastTarget = false;
             icon.preserveAspect = true;
@@ -490,6 +503,8 @@ public class HUD : MonoBehaviour
             string ct = count > 1 ? count.ToString() : "";
             if (ui.count.text != ct) ui.count.text = ct;
 
+            bool pbOn = wings != null && wings.IsOpen && item != null && item == wings.WingItem;
+            if (ui.activeFrame.activeSelf != pbOn) ui.activeFrame.SetActive(pbOn);
             ui.back.color = sel ? hotbarSelectedColor : hotbarSlotColor;
             if (ui.selFrame.activeSelf != sel) ui.selFrame.SetActive(sel);
             float target = sel ? hotbarSelectedScale : 1f;
@@ -699,7 +714,7 @@ public class HUD : MonoBehaviour
         else
         {
             // Pháp lực đang bị rút nhanh: chớp nhẹ
-            float drainNow = swarm != null ? swarm.CurrentDrainPerSecond : 0f;
+            float drainNow = TotalDrain();
             if (drainNow > drainWarnThreshold)
             {
                 float p = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * drainPulseRate * Mathf.PI * 2f);
@@ -709,10 +724,16 @@ public class HUD : MonoBehaviour
         }
 
         // Con số tiêu hao mỗi giây trên thanh pháp lực
-        float drain = swarm != null ? swarm.CurrentDrainPerSecond : 0f;
+        float drain = TotalDrain();
         bool showDrain = drain > drainWarnThreshold;
         if (drainText.gameObject.activeSelf != showDrain) drainText.gameObject.SetActive(showDrain);
         if (showDrain) drainText.text = "-" + Mathf.RoundToInt(drain) + "/s";
+    }
+
+    /// <summary>Tổng pháp lực đang bị rút mỗi giây: Ngự Kiếm Thuật + cánh Phong Lôi Sí.</summary>
+    private float TotalDrain()
+    {
+        return (swarm != null ? swarm.CurrentDrainPerSecond : 0f) + (wings != null ? wings.CurrentDrainPerSecond : 0f);
     }
 
     private void UpdateDeathFade()
