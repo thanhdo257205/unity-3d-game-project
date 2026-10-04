@@ -51,3 +51,7 @@ desktop.ini
 # Ảnh chụp thử do công cụ MCP tạo
 /[Aa]ssets/Screenshots/
 /[Aa]ssets/Screenshots.meta
+
+# Mẫu Visual Effect Graph (49MB): chỉ giữ trong git các file dùng thật, đã chuyển sang Assets/_Game/VFX/
+/[Aa]ssets/Samples/
+/[Aa]ssets/Samples.meta

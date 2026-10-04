@@ -3,7 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Hình dáng và chuyển động của đôi cánh Phong Lôi Sí, dùng mô hình thật (prefab PhongLoiSi: 風雷翅 của 芒果小子, đã xử lý cho game)
 /// với bốn animation Open (xòe 0.5s), Flap (vỗ, lặp), Glide (lướt, cánh duỗi hơi cụp về sau, lặp), Close (gập 0.4s).
-/// - Gắn ở xương ngực (Spine2), lệch xuống và ra sau lưng theo "Lệch gốc cánh", luôn cùng hướng với thân người (kể cả khi thân nghiêng lúc bay).
+/// - Gắn ở xương ngực (Spine2), lệch xuống và ra sau lưng theo "Lệch gốc cánh", hướng lấy từ thân nhân vật (xem SetOrientation), không lấy từ xương ngực nên không bị cột sống vặn trong clip bay kéo lệch.
 /// - Open/Close: phát animation xòe/gập; gập xong thì ẩn cánh.
 /// - SetMotion do PhongLoiSi gọi theo trạng thái: biên độ nhỏ (đứng yên) hoặc bay nhanh thì lướt (Glide); còn lại vỗ (Flap) với tốc độ theo nhịp.
 /// - Độ sáng emission mép lông (dải sáng mảnh chạy dọc mép) sáng lên theo nhịp vỗ.
@@ -64,6 +64,15 @@ public class WingVisual : MonoBehaviour
     private bool flickering;
     private float pulse;
     private bool built;
+
+    private Quaternion orientation = Quaternion.identity;
+    private bool hasOrientation;
+
+    /// <summary>
+    /// Hướng của đôi cánh trong thế giới (trục phải song song trục phải thân người, trục lên theo góc nghiêng của thân).
+    /// PhongLoiSi đặt mỗi khung hình; chưa đặt thì dùng hướng của mô hình nhân vật.
+    /// </summary>
+    public void SetOrientation(Quaternion worldRotation) { orientation = worldRotation; hasOrientation = true; }
 
     /// <summary>Độ xòe làm mượt (0 khép, 1 xòe hết).</summary>
     public float Spread => Mathf.SmoothStep(0f, 1f, spread);
@@ -234,11 +243,13 @@ public class WingVisual : MonoBehaviour
         if (!built) Build();
         float dt = Time.deltaTime;
 
-        // Gắn theo thân người
-        if (chestBone != null && bodyRoot != null)
+        // Điểm neo của cánh: VỊ TRÍ bám xương ngực (cộng độ lệch), HƯỚNG lấy từ thân nhân vật (do PhongLoiSi tính từ góc nghiêng/rẽ của thân),
+        // KHÔNG lấy phép xoay của xương ngực vì clip bay làm cột sống vặn và nghiêng, kéo cánh lệch theo.
+        if (chestBone != null && (hasOrientation || bodyRoot != null))
         {
-            transform.rotation = bodyRoot.rotation;
-            transform.position = chestBone.position + bodyRoot.rotation * rootOffset;
+            Quaternion rot = hasOrientation ? orientation : bodyRoot.rotation;
+            transform.rotation = rot;
+            transform.position = chestBone.position + rot * rootOffset;
         }
 
         // Theo dõi tiến độ xòe/gập (theo thời gian, khớp với tốc độ phát clip)

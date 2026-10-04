@@ -112,14 +112,60 @@ public class PhongLoiSi : MonoBehaviour
     [Tooltip("Góc ngả ra sau khi bay lùi (độ, số âm).")]
     [SerializeField, Range(-40f, 0f)] private float backwardPitch = -12f;
 
-    [Tooltip("Nghiêng người tối đa khi rẽ ngang (độ).")]
-    [SerializeField, Range(0f, 60f)] private float maxBank = 25f;
+    [Tooltip("Nghiêng người tối đa khi rẽ (độ). Chỉ nghiêng khi rẽ (bay ngang sang bên hoặc xoay camera), bay thẳng thì không nghiêng; tự cân bằng lại.")]
+    [SerializeField, Range(0f, 60f)] private float maxBank = 30f;
+
+    [Tooltip("Nghiêng thêm khi xoay camera lúc đang bay nhanh: số độ nghiêng cho mỗi độ/giây tốc độ quay. 0 = chỉ nghiêng theo bay ngang.")]
+    [SerializeField, Range(0f, 1f)] private float bankPerTurnRate = 0.12f;
+
+    [Tooltip("Góc nghiêng của cánh = hệ số này x góc nghiêng thân. Cánh luôn cùng trục phải với thân (đối xứng trái phải) và nghiêng cùng thân lúc rẽ; hệ số chỉ quyết định cánh chĩa lên/ra sau thế nào khi thân chúi tới. 1 = nghiêng đúng bằng thân (lông cánh chĩa tới trước, đè lên đầu); 0 = dựng đứng; âm = ngả ra sau (mặc định -0.33: bay nhanh cánh ngả ra sau khoảng 25 độ).")]
+    [SerializeField, Range(-1.5f, 1f)] private float wingTiltRatio = -0.33f;
+
+    [Tooltip("Bù độ nghiêng sẵn có của clip Bay: clip làm vai/hông nghiêng sang một bên khoảng 7 độ khi bay thẳng. Số này (độ, âm = nghiêng ngược lại; tăng dần theo độ chúi của thân) cộng vào để người không lăn sang bên khi bay thẳng. Chỉ bù cho thân, không làm cánh nghiêng theo.")]
+    [SerializeField, Range(-20f, 20f)] private float clipRollTrim = -6f;
 
     [Tooltip("Thời gian chuyển giữa các dáng (giây).")]
     [SerializeField, Min(0.05f)] private float poseSmoothTime = 0.3f;
 
     [Tooltip("Độ cao tâm xoay của thân (mét tính từ chân). Thân xoay quanh điểm này để không lún xuống đất hay trồi lên.")]
     [SerializeField, Min(0.2f)] private float pivotHeight = 1f;
+
+    [Header("Dáng người khi bay (ghi đè xương bằng code, sau khi Animator chạy)")]
+    [Tooltip("Bật chỉnh dáng: chân duỗi thẳng theo trục thân, tay xuôi dọc thân, đầu ngẩng nhìn hướng bay. Tắt = giữ nguyên dáng của clip Bay.")]
+    [SerializeField] private bool shapePose = true;
+
+    [Tooltip("Tốc độ bay (mét/giây) mà từ đó dáng duỗi hoàn toàn (chân khép, thẳng, mũi chân duỗi). Dưới mức này trộn dần về dáng lơ lửng.")]
+    [SerializeField, Min(0.5f)] private float fullStretchSpeed = 12f;
+
+    [Tooltip("Lơ lửng: hai chân lệch nhau (một chân ra trước, một chân ra sau) bấy nhiêu độ để trông tự nhiên.")]
+    [SerializeField, Range(0f, 30f)] private float hoverLegStagger = 9f;
+
+    [Tooltip("Lơ lửng: cẳng chân gập nhẹ ra sau bấy nhiêu độ.")]
+    [SerializeField, Range(0f, 40f)] private float hoverKneeBend = 8f;
+
+    [Tooltip("Lơ lửng: hai chân tách ra hai bên bấy nhiêu độ.")]
+    [SerializeField, Range(0f, 20f)] private float hoverLegSplay = 5f;
+
+    [Tooltip("Bay nhanh: hai chân tách ra hai bên bấy nhiêu độ (số nhỏ = khép).")]
+    [SerializeField, Range(0f, 20f)] private float flyLegSplay = 1.5f;
+
+    [Tooltip("Mũi chân duỗi thẳng nối dài cẳng chân (0 = giữ như clip, 1 = duỗi hoàn toàn).")]
+    [SerializeField, Range(0f, 1f)] private float toePoint = 1f;
+
+    [Tooltip("Lơ lửng: hai tay dang ra khỏi thân bấy nhiêu độ.")]
+    [SerializeField, Range(0f, 60f)] private float hoverArmSpread = 28f;
+
+    [Tooltip("Bay nhanh: hai tay xuôi dọc thân, hơi tách ra bấy nhiêu độ.")]
+    [SerializeField, Range(0f, 40f)] private float flyArmSpread = 12f;
+
+    [Tooltip("Khuỷu tay gập nhẹ ra trước bấy nhiêu độ.")]
+    [SerializeField, Range(0f, 40f)] private float elbowBend = 8f;
+
+    [Tooltip("Đầu ngẩng nhìn theo hướng bay: góc xoay tối đa của cổ + đầu so với dáng trong clip (độ).")]
+    [SerializeField, Range(0f, 90f)] private float headLookLimit = 60f;
+
+    [Tooltip("Phần góc ngẩng do xương cổ chịu (0-1), phần còn lại do xương đầu.")]
+    [SerializeField, Range(0f, 1f)] private float neckShare = 0.4f;
 
     [Header("Vỗ cánh")]
     [Tooltip("Cánh mở trên mặt đất: biên độ vỗ (độ) và nhịp (lần/giây).")]
@@ -194,7 +240,20 @@ public class PhongLoiSi : MonoBehaviour
     private float groundY;
     private float fallPeak;
     private Vector3 modelBasePos;
-    private float appliedPitch, pitchVel, appliedBank, bankVel;
+    private float bodyTilt, tiltVel, clipWeight, clipVel, appliedBank, bankVel;
+    private float lastYaw, turnRate;
+    private Quaternion bodyRotation = Quaternion.identity;
+
+    // Xương dùng để chỉnh dáng khi bay: [0] trái, [1] phải
+    private readonly Transform[] upLeg = new Transform[2], lowLeg = new Transform[2], foot = new Transform[2], toes = new Transform[2];
+    private readonly Transform[] upArm = new Transform[2], lowArm = new Transform[2], hand = new Transform[2];
+    private Transform neckBone, headBone;
+    private Vector3 headFwdLocal;
+    private bool headCaptured;
+    private float poseWeight, armWeight, poseSpeed;
+    private Vector3 lookDir = Vector3.forward;
+    private int upperLayer = -1;
+    private static readonly int EmptyUpperId = Animator.StringToHash("Trong");
     private float camDist, camDistVel, camFov, camFovVel;
     private float flapAmp, flapAmpVel, flapHz, flapHzVel, levelNow, levelVel;
     private bool built;
@@ -268,6 +327,28 @@ public class PhongLoiSi : MonoBehaviour
         if (model != null) modelBasePos = model.localPosition;
         groundY = transform.position.y;
         fallPeak = transform.position.y;
+
+        if (animator != null)
+        {
+            upperLayer = animator.GetLayerIndex("UpperBody");
+            upLeg[0] = animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+            upLeg[1] = animator.GetBoneTransform(HumanBodyBones.RightUpperLeg);
+            lowLeg[0] = animator.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
+            lowLeg[1] = animator.GetBoneTransform(HumanBodyBones.RightLowerLeg);
+            foot[0] = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+            foot[1] = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+            toes[0] = animator.GetBoneTransform(HumanBodyBones.LeftToes);
+            toes[1] = animator.GetBoneTransform(HumanBodyBones.RightToes);
+            upArm[0] = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            upArm[1] = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            lowArm[0] = animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+            lowArm[1] = animator.GetBoneTransform(HumanBodyBones.RightLowerArm);
+            hand[0] = animator.GetBoneTransform(HumanBodyBones.LeftHand);
+            hand[1] = animator.GetBoneTransform(HumanBodyBones.RightHand);
+            neckBone = animator.GetBoneTransform(HumanBodyBones.Neck);
+            headBone = animator.GetBoneTransform(HumanBodyBones.Head);
+        }
+        lastYaw = transform.eulerAngles.y;
 
         if (visual != null && animator != null)
         {
@@ -618,45 +699,161 @@ public class PhongLoiSi : MonoBehaviour
         if (!built) return;
         float dt = Time.deltaTime;
         UpdateBodyPose(dt);
+        if (shapePose) ApplyFlightPose(dt);
+        UpdateWingAnchor();
         UpdateWingMotion(dt);
         UpdateCamera(dt);
     }
 
-    /// <summary>Xoay thân quanh hông theo tốc độ: lơ lửng đứng thẳng, bay thường nghiêng, tăng tốc gần nằm ngang; nghiêng người theo hướng rẽ.</summary>
+    /// <summary>
+    /// Xoay thân quanh hông theo tốc độ: lơ lửng đứng thẳng, bay thường nghiêng, tăng tốc gần nằm ngang. Nghiêng (roll) CHỈ khi rẽ
+    /// (bay ngang sang bên hoặc xoay camera lúc đang bay nhanh), quanh trục tiến ngang của nhân vật, rồi tự cân bằng lại.
+    /// bodyTilt = góc nghiêng thật của thân (so với phương thẳng đứng); mô hình chỉ xoay phần chênh với góc có sẵn trong clip.
+    /// </summary>
     private void UpdateBodyPose(float dt)
     {
         if (model == null) return;
-        float targetPitch = 0f, targetBank = 0f;
+        float targetTilt = 0f, targetBank = 0f;
+
+        // Tốc độ quay thân (độ/giây) để nghiêng khi xoay camera
+        float yawNow = transform.eulerAngles.y;
+        float yawDelta = Mathf.DeltaAngle(lastYaw, yawNow);
+        lastYaw = yawNow;
+        float instantRate = dt > 0.0001f ? yawDelta / dt : 0f;
+        turnRate = Mathf.Lerp(turnRate, Mathf.Clamp(instantRate, -400f, 400f), 1f - Mathf.Exp(-12f * dt));
+
         if (flying)
         {
             Vector3 planar = new Vector3(flightVelocity.x, 0f, flightVelocity.z);
             float fwd = Vector3.Dot(planar, transform.forward);
             float lateral = Vector3.Dot(planar, transform.right);
-            float total;
             if (fwd >= 0f)
             {
-                total = fwd <= cruiseSpeed
+                targetTilt = fwd <= cruiseSpeed
                     ? Mathf.Lerp(hoverPitch, cruisePitch, fwd / cruiseSpeed)
                     : Mathf.Lerp(cruisePitch, boostPitch, Mathf.Clamp01((fwd - cruiseSpeed) / Mathf.Max(0.1f, boostSpeed - cruiseSpeed)));
             }
-            else total = Mathf.Lerp(hoverPitch, backwardPitch, Mathf.Clamp01(-fwd / cruiseSpeed));
-            // Clip đã nằm nghiêng sẵn clipPitch độ: chỉ xoay phần chênh lệch
-            targetPitch = total - clipPitch;
-            targetBank = -Mathf.Clamp(lateral / boostSpeed, -1f, 1f) * maxBank;
+            else targetTilt = Mathf.Lerp(hoverPitch, backwardPitch, Mathf.Clamp01(-fwd / cruiseSpeed));
+            // Bay ngang sang trái (lateral < 0) thì nghiêng về trái; xoay camera sang trái (turnRate < 0) cũng vậy, chỉ khi đang bay đủ nhanh
+            float speed01 = Mathf.Clamp01(planar.magnitude / cruiseSpeed);
+            targetBank = (-Mathf.Clamp(lateral / boostSpeed, -1f, 1f) * maxBank) + (-turnRate * bankPerTurnRate * speed01);
+            targetBank = Mathf.Clamp(targetBank, -maxBank, maxBank);
         }
-        appliedPitch = Mathf.SmoothDamp(appliedPitch, targetPitch, ref pitchVel, poseSmoothTime);
+        bodyTilt = Mathf.SmoothDamp(bodyTilt, targetTilt, ref tiltVel, poseSmoothTime);
+        clipWeight = Mathf.SmoothDamp(clipWeight, flying ? 1f : 0f, ref clipVel, poseSmoothTime);
         appliedBank = Mathf.SmoothDamp(appliedBank, targetBank, ref bankVel, poseSmoothTime);
 
-        if (Mathf.Abs(appliedPitch) < 0.01f && Mathf.Abs(appliedBank) < 0.01f)
+        // Clip Bay đã nằm nghiêng sẵn clipPitch độ (theo mức trộn clip): mô hình chỉ xoay phần chênh lệch
+        float appliedPitch = bodyTilt - clipPitch * clipWeight;
+        // Clip nghiêng vai/hông nhiều nhất khi thân đã chúi tới (đo: ~3 độ lúc lơ lửng, ~7 độ khi bay), nên số bù tăng theo độ chúi
+        float trim = clipRollTrim * clipWeight * Mathf.Clamp01(bodyTilt / Mathf.Max(1f, cruisePitch));
+        bodyRotation = transform.rotation * Quaternion.AngleAxis(appliedBank, Vector3.forward) * Quaternion.AngleAxis(bodyTilt, Vector3.right);
+
+        if (Mathf.Abs(appliedPitch) < 0.01f && Mathf.Abs(appliedBank + trim) < 0.01f)
         {
             model.localRotation = Quaternion.identity;
             model.localPosition = modelBasePos;
             return;
         }
-        Quaternion r = Quaternion.Euler(appliedPitch, 0f, appliedBank);
+        Quaternion r = Quaternion.AngleAxis(appliedBank + trim, Vector3.forward) * Quaternion.AngleAxis(appliedPitch, Vector3.right);
         Vector3 pivot = new Vector3(0f, pivotHeight, 0f);
         model.localRotation = r;
         model.localPosition = pivot + r * (modelBasePos - pivot);
+    }
+
+    /// <summary>Hướng đôi cánh = thân người (trục phải song song trục phải nhân vật, trục lên theo góc nghiêng và rẽ của thân), không theo xương ngực.</summary>
+    private void UpdateWingAnchor()
+    {
+        if (visual == null) return;
+        float tilt = bodyTilt * wingTiltRatio;
+        Quaternion q = transform.rotation * Quaternion.AngleAxis(appliedBank, Vector3.forward) * Quaternion.AngleAxis(tilt, Vector3.right);
+        visual.SetOrientation(q);
+    }
+
+    // ----- Chỉnh dáng người khi bay -----
+
+    /// <summary>
+    /// Ghi đè xương sau khi Animator chạy: chân duỗi thẳng dọc trục thân (lơ lửng thì hơi so le, bay nhanh thì khép + mũi chân duỗi),
+    /// tay xuôi dọc thân hơi tách ra (lơ lửng thì dang hơn), cổ và đầu ngẩng nhìn hướng bay. Trộn mượt vào/ra theo lúc cất/hạ cánh.
+    /// Tay chỉ ghi đè khi không chém/phóng kiếm (lớp thân trên đang rảnh) để không phá animation chém.
+    /// </summary>
+    private void ApplyFlightPose(float dt)
+    {
+        if (animator == null || model == null) return;
+        poseWeight = Mathf.MoveTowards(poseWeight, flying ? 1f : 0f, dt / Mathf.Max(0.05f, poseSmoothTime));
+        if (!headCaptured && !flying && poseWeight <= 0f && headBone != null && player.IsGrounded)
+        {
+            // Hướng mặt trong hệ xương đầu, đo lúc đứng yên (mặt nhìn theo hướng nhân vật)
+            headFwdLocal = Quaternion.Inverse(headBone.rotation) * transform.forward;
+            headCaptured = true;
+        }
+        if (poseWeight <= 0.001f) { armWeight = 0f; return; }
+
+        bool upperBusy = false;
+        if (upperLayer >= 0)
+        {
+            AnimatorStateInfo cur = animator.GetCurrentAnimatorStateInfo(upperLayer);
+            upperBusy = cur.shortNameHash != EmptyUpperId || animator.IsInTransition(upperLayer);
+        }
+        if (melee != null && melee.IsAttacking) upperBusy = true;
+        armWeight = Mathf.MoveTowards(armWeight, upperBusy ? 0f : 1f, dt * 8f);
+
+        poseSpeed = Mathf.MoveTowards(poseSpeed, Mathf.Clamp01(flightVelocity.magnitude / fullStretchSpeed), dt * 3f);
+        float hv = 1f - poseSpeed;   // 1 = lơ lửng, 0 = bay nhanh
+
+        Vector3 down = bodyRotation * Vector3.down;
+        Vector3 right = bodyRotation * Vector3.right;
+        Vector3 fwd = bodyRotation * Vector3.forward;
+        float w = poseWeight;
+
+        for (int s = 0; s < 2; s++)
+        {
+            float side = s == 0 ? -1f : 1f;   // trái -1, phải +1
+            // Chân: lơ lửng thì trái ra trước, phải ra sau; bay nhanh thì cả hai thẳng và khép
+            float stagger = hv * hoverLegStagger * (s == 0 ? 1f : -1f) * Mathf.Deg2Rad;
+            float splay = Mathf.Lerp(flyLegSplay, hoverLegSplay, hv) * Mathf.Deg2Rad;
+            Vector3 thigh = (down * Mathf.Cos(stagger) + fwd * Mathf.Sin(stagger) + right * (side * Mathf.Sin(splay))).normalized;
+            float knee = hv * hoverKneeBend * Mathf.Deg2Rad;
+            Vector3 shank = (thigh * Mathf.Cos(knee) - fwd * Mathf.Sin(knee)).normalized;
+            Aim(upLeg[s], lowLeg[s], thigh, w);
+            Aim(lowLeg[s], foot[s], shank, w);
+            Aim(foot[s], toes[s], shank, w * toePoint);
+
+            // Tay: xuôi dọc thân, tách ra hai bên; khuỷu gập nhẹ ra trước
+            float aw = w * armWeight;
+            if (aw > 0.001f)
+            {
+                float spread = Mathf.Lerp(flyArmSpread, hoverArmSpread, hv) * Mathf.Deg2Rad;
+                Vector3 upperDir = (down * Mathf.Cos(spread) + right * (side * Mathf.Sin(spread))).normalized;
+                float bend = elbowBend * Mathf.Deg2Rad;
+                Vector3 lowerDir = (upperDir * Mathf.Cos(bend) + fwd * Mathf.Sin(bend)).normalized;
+                Aim(upArm[s], lowArm[s], upperDir, aw);
+                Aim(lowArm[s], hand[s], lowerDir, aw);
+            }
+        }
+
+        // Đầu: ngẩng nhìn theo hướng bay (đứng yên thì nhìn thẳng theo hướng nhân vật), giới hạn headLookLimit
+        if (headBone != null && headCaptured)
+        {
+            Vector3 wantDir = flightVelocity.sqrMagnitude > 4f ? flightVelocity.normalized : transform.forward;
+            lookDir = Vector3.Slerp(lookDir, wantDir, 1f - Mathf.Exp(-8f * dt)).normalized;
+            Vector3 face = headBone.rotation * headFwdLocal;
+            Quaternion delta = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(face, lookDir), headLookLimit);
+            if (neckBone != null) neckBone.rotation = Quaternion.Slerp(Quaternion.identity, delta, neckShare * w) * neckBone.rotation;
+            face = headBone.rotation * headFwdLocal;
+            Quaternion delta2 = Quaternion.RotateTowards(Quaternion.identity, Quaternion.FromToRotation(face, lookDir), headLookLimit * (1f - neckShare));
+            headBone.rotation = Quaternion.Slerp(Quaternion.identity, delta2, w) * headBone.rotation;
+        }
+    }
+
+    /// <summary>Xoay xương bone (theo trọng số weight) sao cho hướng từ bone tới child trùng targetDir. Tuyệt đối, nên áp lại nhiều lần vẫn không cộng dồn.</summary>
+    private static void Aim(Transform bone, Transform child, Vector3 targetDir, float weight)
+    {
+        if (bone == null || child == null || weight <= 0.0001f) return;
+        Vector3 cur = child.position - bone.position;
+        if (cur.sqrMagnitude < 1e-8f) return;
+        Quaternion full = Quaternion.FromToRotation(cur.normalized, targetDir) * bone.rotation;
+        bone.rotation = Quaternion.Slerp(bone.rotation, full, Mathf.Clamp01(weight));
     }
 
     private void UpdateWingMotion(float dt)

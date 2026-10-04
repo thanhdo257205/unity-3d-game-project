@@ -9457,9 +9457,24 @@ MonoBehaviour:
   cruisePitch: 50
   boostPitch: 75
   backwardPitch: -12
-  maxBank: 25
+  maxBank: 30
+  bankPerTurnRate: 0.12
+  wingTiltRatio: -0.33
+  clipRollTrim: -6
   poseSmoothTime: 0.3
   pivotHeight: 1
+  shapePose: 1
+  fullStretchSpeed: 12
+  hoverLegStagger: 9
+  hoverKneeBend: 8
+  hoverLegSplay: 5
+  flyLegSplay: 1.5
+  toePoint: 1
+  hoverArmSpread: 28
+  flyArmSpread: 12
+  elbowBend: 8
+  headLookLimit: 60
+  neckShare: 0.4
   groundFlap: {x: 6, y: 0.5}
   hoverFlap: {x: 12, y: 0.7}
   climbFlap: {x: 24, y: 1.5}
