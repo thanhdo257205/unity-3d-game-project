@@ -9459,7 +9459,11 @@ MonoBehaviour:
   backwardPitch: -12
   maxBank: 30
   bankPerTurnRate: 0.12
-  wingTiltRatio: -0.33
+  wingBackHover: 0
+  wingBackCruise: 35
+  wingBackBoost: 60
+  wingRootShiftInFlight: {x: 0, y: -0.2, z: 0}
+  boostWingFold: 0.2
   clipRollTrim: -6
   poseSmoothTime: 0.3
   pivotHeight: 1
@@ -9468,7 +9472,7 @@ MonoBehaviour:
   hoverLegStagger: 9
   hoverKneeBend: 8
   hoverLegSplay: 5
-  flyLegSplay: 1.5
+  flyLegSplay: -4
   toePoint: 1
   hoverArmSpread: 28
   flyArmSpread: 12

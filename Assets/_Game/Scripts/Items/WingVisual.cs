@@ -66,13 +66,30 @@ public class WingVisual : MonoBehaviour
     private bool built;
 
     private Quaternion orientation = Quaternion.identity;
+    private Quaternion offsetFrame = Quaternion.identity;
     private bool hasOrientation;
+    private readonly Quaternion[] foldedL = new Quaternion[3], foldedR = new Quaternion[3];
+    private bool hasFolded;
+    private float fold;
+    private Vector3 extraOffset;
+
+    /// <summary>Khép bớt cánh về phía sau (0-1): trộn góc xoay các xương với dáng gập của clip Close. PhongLoiSi đặt khi tăng tốc.</summary>
+    public void SetFold(float amount01) { fold = Mathf.Clamp01(amount01); }
+
+    /// <summary>Dịch thêm gốc cánh (theo hệ trục thân: phải, lên, trước) ngoài "Lệch gốc cánh". PhongLoiSi dùng để hạ gốc cánh xuống lưng khi thân chúi tới, cho camera sau lưng khỏi bị cánh che đầu.</summary>
+    public void SetExtraOffset(Vector3 offset) { extraOffset = offset; }
 
     /// <summary>
     /// Hướng của đôi cánh trong thế giới (trục phải song song trục phải thân người, trục lên theo góc nghiêng của thân).
     /// PhongLoiSi đặt mỗi khung hình; chưa đặt thì dùng hướng của mô hình nhân vật.
     /// </summary>
-    public void SetOrientation(Quaternion worldRotation) { orientation = worldRotation; hasOrientation = true; }
+    public void SetOrientation(Quaternion worldRotation) { orientation = worldRotation; offsetFrame = worldRotation; hasOrientation = true; }
+
+    /// <summary>
+    /// Như SetOrientation nhưng độ lệch gốc cánh (Lệch gốc cánh) tính theo hệ trục của THÂN người (offsetFrameRotation), không theo hệ trục của cánh:
+    /// cánh ngả ra sau nhiều hơn thân thì gốc cánh vẫn nằm sát mặt lưng, không chui vào thân.
+    /// </summary>
+    public void SetOrientation(Quaternion worldRotation, Quaternion offsetFrameRotation) { orientation = worldRotation; offsetFrame = offsetFrameRotation; hasOrientation = true; }
 
     /// <summary>Độ xòe làm mượt (0 khép, 1 xòe hết).</summary>
     public float Spread => Mathf.SmoothStep(0f, 1f, spread);
@@ -118,6 +135,7 @@ public class WingVisual : MonoBehaviour
             boneL[i] = FindDeep(inst.transform, "Canh_T" + (i + 1));
             boneR[i] = FindDeep(inst.transform, "Canh_P" + (i + 1));
         }
+        CacheFoldedPose(inst);
         foreach (SkinnedMeshRenderer smr in inst.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             renderers.Add(smr);
@@ -128,6 +146,22 @@ public class WingVisual : MonoBehaviour
             }
             smr.enabled = false;
         }
+    }
+
+    /// <summary>Lưu góc xoay các xương cánh ở cuối clip Close (cánh gập hẳn) để trộn một phần vào dáng lướt khi tăng tốc.</summary>
+    private void CacheFoldedPose(GameObject inst)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return;
+        AnimationClip close = null;
+        foreach (AnimationClip c in animator.runtimeAnimatorController.animationClips) if (c != null && c.name == "Close") close = c;
+        if (close == null) return;
+        close.SampleAnimation(inst, close.length);
+        for (int i = 0; i < 3; i++)
+        {
+            foldedL[i] = boneL[i] != null ? boneL[i].localRotation : Quaternion.identity;
+            foldedR[i] = boneR[i] != null ? boneR[i].localRotation : Quaternion.identity;
+        }
+        hasFolded = true;
     }
 
     private static Transform FindDeep(Transform root, string name)
@@ -248,8 +282,9 @@ public class WingVisual : MonoBehaviour
         if (chestBone != null && (hasOrientation || bodyRoot != null))
         {
             Quaternion rot = hasOrientation ? orientation : bodyRoot.rotation;
+            Quaternion frame = hasOrientation ? offsetFrame : rot;
             transform.rotation = rot;
-            transform.position = chestBone.position + rot * rootOffset;
+            transform.position = chestBone.position + frame * (rootOffset + extraOffset);
         }
 
         // Theo dõi tiến độ xòe/gập (theo thời gian, khớp với tốc độ phát clip)
@@ -277,6 +312,16 @@ public class WingVisual : MonoBehaviour
         if (animator != null && currentState == "Flap")
             pulse = 0.5f + 0.5f * Mathf.Sin(animator.GetCurrentAnimatorStateInfo(0).normalizedTime * Mathf.PI * 2f);
         else pulse = Mathf.MoveTowards(pulse, 0.25f, dt * 2f);
+
+        // Khép bớt cánh (tăng tốc): trộn sau khi Animator đã đặt xương (LateUpdate chạy sau Animator)
+        if (hasFolded && fold > 0.001f)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (boneL[i] != null) boneL[i].localRotation = Quaternion.Slerp(boneL[i].localRotation, foldedL[i], fold);
+                if (boneR[i] != null) boneR[i].localRotation = Quaternion.Slerp(boneR[i].localRotation, foldedR[i], fold);
+            }
+        }
 
         if (featherInstance != null)
         {

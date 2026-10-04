@@ -118,8 +118,21 @@ public class PhongLoiSi : MonoBehaviour
     [Tooltip("Nghiêng thêm khi xoay camera lúc đang bay nhanh: số độ nghiêng cho mỗi độ/giây tốc độ quay. 0 = chỉ nghiêng theo bay ngang.")]
     [SerializeField, Range(0f, 1f)] private float bankPerTurnRate = 0.12f;
 
-    [Tooltip("Góc nghiêng của cánh = hệ số này x góc nghiêng thân. Cánh luôn cùng trục phải với thân (đối xứng trái phải) và nghiêng cùng thân lúc rẽ; hệ số chỉ quyết định cánh chĩa lên/ra sau thế nào khi thân chúi tới. 1 = nghiêng đúng bằng thân (lông cánh chĩa tới trước, đè lên đầu); 0 = dựng đứng; âm = ngả ra sau (mặc định -0.33: bay nhanh cánh ngả ra sau khoảng 25 độ).")]
-    [SerializeField, Range(-1.5f, 1f)] private float wingTiltRatio = -0.33f;
+    [Header("Độ ngả của cánh theo tốc độ")]
+    [Tooltip("Cánh ngả ra sau bao nhiêu độ (so với phương thẳng đứng) khi lơ lửng. 0 = dựng đứng.")]
+    [SerializeField, Range(0f, 90f)] private float wingBackHover = 0f;
+
+    [Tooltip("Cánh ngả ra sau bao nhiêu độ khi bay thường (đạt ở tốc độ bay thường).")]
+    [SerializeField, Range(0f, 90f)] private float wingBackCruise = 35f;
+
+    [Tooltip("Cánh ngả ra sau bao nhiêu độ khi tăng tốc (đạt ở tốc độ tăng tốc). Chuyển mượt giữa ba mức theo tốc độ. Lông cánh không được đè lên đầu hay xuyên lưng ở mọi mức: đã đo, xem CLAUDE.md.")]
+    [SerializeField, Range(0f, 90f)] private float wingBackBoost = 60f;
+
+    [Tooltip("Khi thân chúi tới (bay thường, tăng tốc), dịch thêm gốc cánh theo hệ trục thân (phải, lên, trước; mét), đạt đủ ở góc chúi bay thường, tăng thêm tới 1,6 lần khi tăng tốc. Y âm = hạ gốc cánh xuống lưng để camera sau lưng không bị tay cánh che mất đầu nhân vật.")]
+    [SerializeField] private Vector3 wingRootShiftInFlight = new Vector3(0f, -0.2f, 0f);
+
+    [Tooltip("Khi tăng tốc, cánh khép bớt về phía sau bấy nhiêu phần (0-1; 0.2 = 20%, trộn clip Glide với dáng gập của clip Close) để dáng thuôn như chim lao.")]
+    [SerializeField, Range(0f, 1f)] private float boostWingFold = 0.2f;
 
     [Tooltip("Bù độ nghiêng sẵn có của clip Bay: clip làm vai/hông nghiêng sang một bên khoảng 7 độ khi bay thẳng. Số này (độ, âm = nghiêng ngược lại; tăng dần theo độ chúi của thân) cộng vào để người không lăn sang bên khi bay thẳng. Chỉ bù cho thân, không làm cánh nghiêng theo.")]
     [SerializeField, Range(-20f, 20f)] private float clipRollTrim = -6f;
@@ -144,10 +157,10 @@ public class PhongLoiSi : MonoBehaviour
     [SerializeField, Range(0f, 40f)] private float hoverKneeBend = 8f;
 
     [Tooltip("Lơ lửng: hai chân tách ra hai bên bấy nhiêu độ.")]
-    [SerializeField, Range(0f, 20f)] private float hoverLegSplay = 5f;
+    [SerializeField, Range(-20f, 20f)] private float hoverLegSplay = 5f;
 
-    [Tooltip("Bay nhanh: hai chân tách ra hai bên bấy nhiêu độ (số nhỏ = khép).")]
-    [SerializeField, Range(0f, 20f)] private float flyLegSplay = 1.5f;
+    [Tooltip("Bay thường/tăng tốc: hai chân tách ra hai bên bấy nhiêu độ. Số ÂM = ép hai chân vào nhau (chụm ngược), để tà áo không bị kéo xòe thành hình chuông.")]
+    [SerializeField, Range(-20f, 20f)] private float flyLegSplay = -4f;
 
     [Tooltip("Mũi chân duỗi thẳng nối dài cẳng chân (0 = giữ như clip, 1 = duỗi hoàn toàn).")]
     [SerializeField, Range(0f, 1f)] private float toePoint = 1f;
@@ -242,6 +255,7 @@ public class PhongLoiSi : MonoBehaviour
     private Vector3 modelBasePos;
     private float bodyTilt, tiltVel, clipWeight, clipVel, appliedBank, bankVel;
     private float lastYaw, turnRate;
+    private float wingBack, wingBackVel, wingBackTarget, wingFold, wingFoldVel, wingFoldTarget;
     private Quaternion bodyRotation = Quaternion.identity;
 
     // Xương dùng để chỉnh dáng khi bay: [0] trái, [1] phải
@@ -722,6 +736,8 @@ public class PhongLoiSi : MonoBehaviour
         float instantRate = dt > 0.0001f ? yawDelta / dt : 0f;
         turnRate = Mathf.Lerp(turnRate, Mathf.Clamp(instantRate, -400f, 400f), 1f - Mathf.Exp(-12f * dt));
 
+        wingBackTarget = wingBackHover;
+        wingFoldTarget = 0f;
         if (flying)
         {
             Vector3 planar = new Vector3(flightVelocity.x, 0f, flightVelocity.z);
@@ -734,6 +750,11 @@ public class PhongLoiSi : MonoBehaviour
                     : Mathf.Lerp(cruisePitch, boostPitch, Mathf.Clamp01((fwd - cruiseSpeed) / Mathf.Max(0.1f, boostSpeed - cruiseSpeed)));
             }
             else targetTilt = Mathf.Lerp(hoverPitch, backwardPitch, Mathf.Clamp01(-fwd / cruiseSpeed));
+            // Độ ngả của cánh theo tốc độ tiến: lơ lửng -> bay thường -> tăng tốc
+            float boostT = Mathf.Clamp01((fwd - cruiseSpeed) / Mathf.Max(0.1f, boostSpeed - cruiseSpeed));
+            wingBackTarget = fwd <= 0f ? wingBackHover
+                : (fwd <= cruiseSpeed ? Mathf.Lerp(wingBackHover, wingBackCruise, fwd / cruiseSpeed) : Mathf.Lerp(wingBackCruise, wingBackBoost, boostT));
+            wingFoldTarget = boostWingFold * boostT;
             // Bay ngang sang trái (lateral < 0) thì nghiêng về trái; xoay camera sang trái (turnRate < 0) cũng vậy, chỉ khi đang bay đủ nhanh
             float speed01 = Mathf.Clamp01(planar.magnitude / cruiseSpeed);
             targetBank = (-Mathf.Clamp(lateral / boostSpeed, -1f, 1f) * maxBank) + (-turnRate * bankPerTurnRate * speed01);
@@ -765,9 +786,13 @@ public class PhongLoiSi : MonoBehaviour
     private void UpdateWingAnchor()
     {
         if (visual == null) return;
-        float tilt = bodyTilt * wingTiltRatio;
+        wingBack = Mathf.SmoothDamp(wingBack, wingBackTarget, ref wingBackVel, poseSmoothTime);
+        wingFold = Mathf.SmoothDamp(wingFold, wingFoldTarget, ref wingFoldVel, poseSmoothTime);
+        visual.SetFold(wingFold);
+        visual.SetExtraOffset(wingRootShiftInFlight * Mathf.Clamp(bodyTilt / Mathf.Max(1f, cruisePitch), 0f, 1.6f));
+        float tilt = -wingBack;   // ngả ra sau = xoay trục lên của cánh về phía sau (âm theo trục phải)
         Quaternion q = transform.rotation * Quaternion.AngleAxis(appliedBank, Vector3.forward) * Quaternion.AngleAxis(tilt, Vector3.right);
-        visual.SetOrientation(q);
+        visual.SetOrientation(q, bodyRotation);   // độ lệch gốc cánh theo trục thân để gốc cánh luôn sát mặt lưng
     }
 
     // ----- Chỉnh dáng người khi bay -----
