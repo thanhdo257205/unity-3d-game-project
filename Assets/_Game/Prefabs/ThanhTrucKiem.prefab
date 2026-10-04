@@ -47,6 +47,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FlyingSword
   tipOffset: 0.87
+  fadeMaterial: {fileID: 2100000, guid: 485e7e81f78e7ef46b08d91d1d9e8a74, type: 2}
   tailOffset: -0.13
   hitRadius: 0.18
   turnSharpness: 14
@@ -54,6 +55,12 @@ MonoBehaviour:
   fullFlySpeed: 3
   strikeTurnSharpness: 35
   trail: {fileID: 463766108871255583}
+  strikeTrailWidth: 0.16
+  strikeTrailTime: 0.3
+  strikeStretch: 1.4
+  feelSharpness: 16
+  model: {fileID: 0}
+  RetireAt: -1
 --- !u!96 &463766108871255583
 TrailRenderer:
   serializedVersion: 4

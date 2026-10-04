@@ -82,6 +82,9 @@ public class HUD : MonoBehaviour
     [Tooltip("Tổng pháp lực tiêu hao mỗi giây vượt mức này thì thanh pháp lực chớp nhẹ và hiện con số tiêu hao (ví dụ -14/s).")]
     [SerializeField, Min(0f)] private float drainWarnThreshold = 8f;
 
+    [Tooltip("Màu con số tiêu hao (-N/s) hiện bên phải số pháp lực. Màu cam để nổi hẳn trên nền cảnh, không lẫn với thanh đang chớp.")]
+    [SerializeField] private Color drainTextColor = new Color(1f, 0.6f, 0.15f, 1f);
+
     [Tooltip("Tốc độ chớp của thanh pháp lực khi bị rút nhanh (số lần mỗi giây).")]
     [SerializeField, Min(0.1f)] private float drainPulseRate = 1.6f;
 
@@ -318,10 +321,10 @@ public class HUD : MonoBehaviour
         float y = -14f;
         healthFill = MakeBar(panel, "Máu", healthColor, ref y, out healthText, out _);
         manaFill = MakeBar(panel, "Pháp lực", manaColor, ref y, out manaText, out manaBack);
-        // Con số tiêu hao mỗi giây nằm ở đầu phải của thanh pháp lực (chỉ hiện khi bị rút nhanh)
-        drainText = MakeText(manaBack.rectTransform, "TieuHao", "", 18, TextAnchor.MiddleRight, new Color(1f, 0.92f, 0.92f));
-        Stretch(drainText.rectTransform);
-        drainText.rectTransform.offsetMax = new Vector2(-6f, 0f);
+        // Con số tiêu hao mỗi giây nằm NGOÀI thanh, bên phải số "200/200" (chỉ hiện khi bị rút nhanh) để đọc được cả lúc thanh đang chớp
+        drainText = MakeText(panel, "TieuHao", "", 24, TextAnchor.MiddleLeft, drainTextColor);
+        SetRect(drainText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(PanelWidth + 10f, -48f), new Vector2(120f, 30f));
+        drainText.fontStyle = FontStyles.Bold;
         Outline(drainText);
         drainText.gameObject.SetActive(false);
         intentFill = MakeBar(panel, "Kiếm ý", intentColor, ref y, out intentText, out intentBack);

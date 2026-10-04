@@ -87,14 +87,30 @@ public class SwordSwarm : MonoBehaviour
     [SerializeField, Min(1f)] private float maxSwordSpeed = 70f;
 
     [Header("Kích thước kiếm")]
-    [Tooltip("Kích thước kiếm khi đứng trong đội hình, so với cỡ thật (1 = cỡ thật). 0.7 để đàn kiếm gọn, không che màn hình.")]
-    [SerializeField, Range(0.3f, 1f)] private float formationSwordScale = 0.7f;
+    [Tooltip("Kích thước kiếm khi đứng trong đội hình, so với cỡ thật (1 = cỡ thật). 0.8 để đàn kiếm gọn, không che màn hình.")]
+    [SerializeField, Range(0.3f, 1f)] private float formationSwordScale = 0.8f;
 
     [Tooltip("Thời gian kiếm to dần từ cỡ nhỏ lên cỡ thật khi phóng đi (giây).")]
     [SerializeField, Min(0.01f)] private float scaleGrowTime = 0.2f;
 
     [Tooltip("Thời gian kiếm nhỏ dần lại sau khi phóng xong và bay về (giây).")]
     [SerializeField, Min(0.01f)] private float scaleShrinkTime = 0.35f;
+
+    [Header("Độ sáng và mờ dần của kiếm trong đội hình")]
+    [Tooltip("Nhân độ phát sáng (emission) của kiếm trong đội hình. 1 = như vật liệu gốc. Tăng để lưỡi kiếm sáng xanh ngọc rõ hơn và có Bloom nhẹ; cao quá thì cháy trắng.")]
+    [SerializeField, Min(0f)] private float formationEmissionBoost = 2f;
+
+    [Tooltip("Khi camera ở phía sau nhân vật: góc giữa hướng nhìn của camera và hướng trước của nhân vật nhỏ hơn mức này (độ) thì kiếm trong đội hình mờ đi để không che nhân vật. Lớn hơn thì hiện rõ 100%.")]
+    [SerializeField, Range(5f, 120f)] private float behindViewAngle = 50f;
+
+    [Tooltip("Độ đậm (0-1) của kiếm trong đội hình và quầng sáng khi camera ở sau lưng. 0.35 = còn 35%.")]
+    [SerializeField, Range(0.05f, 1f)] private float behindOpacity = 0.35f;
+
+    [Tooltip("Thời gian chuyển giữa mờ và rõ khi camera vòng qua lại (giây).")]
+    [SerializeField, Min(0.01f)] private float opacityFadeTime = 0.25f;
+
+    [Tooltip("Vùng đệm (độ) quanh góc mờ dần để camera đứng đúng ngay góc đó không làm kiếm chớp tắt liên tục.")]
+    [SerializeField, Range(0f, 15f)] private float opacityHysteresis = 3f;
 
     [SerializeField] private WheelFormation wheel = new WheelFormation();
     [SerializeField] private RingFormation ring = new RingFormation();
@@ -268,6 +284,40 @@ public class SwordSwarm : MonoBehaviour
 
     /// <summary>Thời gian kiếm mới bay ra từ túi tới chỗ đứng (FlyingSword đọc).</summary>
     public float DeploySettleTime => deploySettleTime;
+
+    /// <summary>Nhân độ phát sáng của kiếm trong đội hình (FlyingSword đọc).</summary>
+    public float FormationEmissionBoost => formationEmissionBoost;
+
+    /// <summary>Thời gian chuyển mờ/rõ (FlyingSword đọc để mờ cùng nhịp).</summary>
+    public float OpacityFadeTime => opacityFadeTime;
+
+    /// <summary>Độ đậm tối thiểu khi camera ở sau lưng (FlyingSword đọc).</summary>
+    public float BehindOpacity => behindOpacity;
+
+    /// <summary>
+    /// Độ đậm hiện tại (đã làm mượt) của kiếm đang đứng trong đội hình và quầng sáng: 1 khi camera ở bên cạnh/phía trước nhân vật,
+    /// <see cref="BehindOpacity"/> khi camera ở sau lưng. Kiếm đang phóng đi hoặc bay về thì luôn 1.
+    /// </summary>
+    public float FormationOpacity { get; private set; } = 1f;
+
+    /// <summary>Tâm Kiếm Luân trong thế giới (sau lưng, giữa hai bả vai). Quầng sáng đặt ở đây.</summary>
+    public Vector3 WheelCenter
+    {
+        get
+        {
+            FormationContext ctx;
+            ctx.origin = AnchorPosition;
+            ctx.body = Quaternion.Euler(0f, owner != null ? owner.eulerAngles.y : 0f, 0f);
+            ctx.time = Time.time;
+            return wheel.GetCenter(ctx);
+        }
+    }
+
+    /// <summary>Hướng pháp tuyến của mặt phẳng Kiếm Luân (hướng nhìn của nhân vật, nằm ngang).</summary>
+    public Vector3 WheelNormal => Quaternion.Euler(0f, owner != null ? owner.eulerAngles.y : 0f, 0f) * Vector3.forward;
+
+    /// <summary>Bán kính vầng Kiếm Luân tính tới mũi kiếm xa nhất (mét), theo cỡ kiếm trong đội hình hiện tại.</summary>
+    public float WheelOuterRadius => wheel.OuterRadius(FlyingSword.DefaultTipOffset, formationSwordScale);
 
     /// <summary>Báo khi bật/tắt Ngự Kiếm Thuật (true = vừa bật).</summary>
     public event System.Action<bool> ActiveChanged;
@@ -446,6 +496,7 @@ public class SwordSwarm : MonoBehaviour
         SyncSwordCount();
         if (!isActive) ProcessRetire();
         TickDespawning(Mathf.Min(Time.deltaTime, 0.05f));
+        UpdateFormationOpacity(Mathf.Min(Time.unscaledDeltaTime, 0.05f));
         if (swords.Count == 0 || owner == null) return;
 
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
@@ -465,6 +516,32 @@ public class SwordSwarm : MonoBehaviour
             SwordSlot slot = formation.GetSlot(swords[i].Index, count, ctx);
             swords[i].Tick(slot, dt);
         }
+    }
+
+    private bool viewFromBehind;
+
+    /// <summary>
+    /// Camera ở phía sau nhân vật (góc giữa hướng nhìn camera và hướng trước nhân vật nhỏ hơn "behindViewAngle") thì độ đậm
+    /// của kiếm trong đội hình giảm còn "behindOpacity"; camera ra bên cạnh/phía trước thì về 100%. Chuyển mượt trong "opacityFadeTime".
+    /// </summary>
+    private void UpdateFormationOpacity(float dt)
+    {
+        Camera cam = GetCamera();
+        if (cam != null && owner != null)
+        {
+            Vector3 view = cam.transform.forward; view.y = 0f;
+            Vector3 face = owner.forward; face.y = 0f;
+            if (view.sqrMagnitude > 0.0001f && face.sqrMagnitude > 0.0001f)
+            {
+                float angle = Vector3.Angle(view, face);
+                // Vùng đệm: đã mờ thì chỉ rõ lại khi vượt góc + đệm, tránh chớp tắt ngay ranh giới
+                if (viewFromBehind) viewFromBehind = angle < behindViewAngle + opacityHysteresis;
+                else viewFromBehind = angle < behindViewAngle;
+            }
+        }
+        float target = viewFromBehind ? behindOpacity : 1f;
+        float rate = (1f - behindOpacity) / Mathf.Max(0.01f, opacityFadeTime);
+        FormationOpacity = Mathf.MoveTowards(FormationOpacity, target, rate * dt);
     }
 
     // ================= Đầu vào =================

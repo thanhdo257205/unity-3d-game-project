@@ -23,9 +23,16 @@ public enum SwordMode
 [DisallowMultipleComponent]
 public class FlyingSword : MonoBehaviour
 {
+    /// <summary>Khoảng cách pivot - mũi của thanh Trúc Kiếm (mét); SwordSwarm dùng để tính bán kính vầng Kiếm Luân khi chưa có kiếm nào.</summary>
+    public const float DefaultTipOffset = 0.87f;
+
     [Header("Thân kiếm")]
     [Tooltip("Khoảng cách từ pivot (giữa chuôi) tới mũi kiếm, mét. Thanh Trúc Kiếm dài 1m nên là 0.87.")]
-    [SerializeField] private float tipOffset = 0.87f;
+    [SerializeField] private float tipOffset = DefaultTipOffset;
+
+    [Header("Độ sáng và mờ dần")]
+    [Tooltip("Vật liệu trong suốt (alpha blend) giống hệt vật liệu kiếm, dùng khi kiếm đang mờ dần (camera ở sau lưng). Kiếm đậm 100% thì dùng lại vật liệu đặc gốc. Để trống thì kiếm không mờ được.")]
+    [SerializeField] private Material fadeMaterial;
 
     [Tooltip("Khoảng cách từ pivot tới đuôi chuôi, mét (số âm = phía sau pivot).")]
     [SerializeField] private float tailOffset = -0.13f;
@@ -111,6 +118,19 @@ public class FlyingSword : MonoBehaviour
     private float bodyScale = 1f;       // kích thước hiện tại của thân kiếm (1 = kích thước thật)
     private bool scaleInitialized;
 
+    // Độ sáng và mờ dần: vật liệu đặc gốc + vật liệu trong suốt, đổi qua lại; màu/emission đặt qua MaterialPropertyBlock
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+    private Renderer modelRenderer;
+    private Material solidMaterial;
+    private Color baseEmission = Color.black;
+    private MaterialPropertyBlock look;
+    private float alpha = 1f;               // độ đậm hiện tại của thân kiếm (1 = đặc)
+    private bool usingFadeMaterial;
+    private float appliedAlpha = -1f;
+    private float appliedBoost = -1f;
+    private bool lookReady;
+
     // Bay ngược về túi trữ vật rồi biến mất (khi tắt Ngự Kiếm Thuật)
     private float despawnDuration = 0.25f;
     private float despawnElapsed;
@@ -150,12 +170,55 @@ public class FlyingSword : MonoBehaviour
         spawnTime = Time.time;
         if (trail == null) trail = GetComponent<TrailRenderer>();
         if (model == null && transform.childCount > 0) model = transform.GetChild(0);
+        InitLook();
         if (trail != null)
         {
             baseTrailWidth = trail.widthMultiplier;
             baseTrailTime = trail.time;
             trail.Clear();
         }
+    }
+
+    /// <summary>Tìm renderer của thân kiếm và nhớ màu emission gốc để nhân lên khi kiếm đứng trong đội hình.</summary>
+    private void InitLook()
+    {
+        if (lookReady) return;
+        lookReady = true;
+        modelRenderer = model != null ? model.GetComponentInChildren<Renderer>() : null;
+        if (modelRenderer == null) return;
+        solidMaterial = modelRenderer.sharedMaterial;
+        if (solidMaterial != null && solidMaterial.HasProperty(EmissionColorId)) baseEmission = solidMaterial.GetColor(EmissionColorId);
+        look = new MaterialPropertyBlock();
+        alpha = Swarm != null ? Swarm.FormationOpacity : 1f;
+    }
+
+    /// <summary>
+    /// Độ đậm và độ sáng của thân kiếm. Kiếm đứng trong đội hình thì theo độ đậm của đàn (mờ khi camera ở sau lưng);
+    /// kiếm đang phóng đi / bay về / đón cầu / bay về túi thì luôn đậm 100%. Độ sáng (emission) nhân với "formationEmissionBoost".
+    /// </summary>
+    private void UpdateLook(float dt, bool alwaysSolid)
+    {
+        if (modelRenderer == null || Swarm == null) return;
+        bool inFormation = !alwaysSolid && Mode == SwordMode.Formation && !IsGuarding && !scheduled;
+        float target = inFormation ? Swarm.FormationOpacity : 1f;
+        float rate = (1f - Swarm.BehindOpacity) / Mathf.Max(0.01f, Swarm.OpacityFadeTime);
+        alpha = Mathf.MoveTowards(alpha, target, rate * dt);
+        if (fadeMaterial == null) alpha = 1f;
+
+        float boost = Swarm.FormationEmissionBoost;
+        if (Mathf.Approximately(alpha, appliedAlpha) && Mathf.Approximately(boost, appliedBoost)) return;
+        appliedAlpha = alpha;
+        appliedBoost = boost;
+
+        bool transparent = alpha < 0.999f;
+        if (transparent != usingFadeMaterial)
+        {
+            usingFadeMaterial = transparent;
+            modelRenderer.sharedMaterial = transparent ? fadeMaterial : solidMaterial;
+        }
+        look.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
+        look.SetColor(EmissionColorId, baseEmission * boost);
+        modelRenderer.SetPropertyBlock(look);
     }
 
     /// <summary>Báo đội hình vừa đổi: bỏ vận tốc cũ của chỗ đứng để không bị giật.</summary>
@@ -264,6 +327,7 @@ public class FlyingSword : MonoBehaviour
     public bool TickDespawn(Vector3 target, float dt)
     {
         despawnElapsed += dt;
+        UpdateLook(dt, true);   // đang bay về túi: luôn hiện rõ
         float u = Mathf.Clamp01(despawnElapsed / despawnDuration);
         float e = u * u;   // ban đầu chậm rồi vút về túi
         Vector3 pos = Vector3.Lerp(despawnStart, target, e);
@@ -289,6 +353,7 @@ public class FlyingSword : MonoBehaviour
         hasLastSlot = true;
 
         UpdateSpeedFeel(dt);
+        UpdateLook(dt, false);
 
         switch (Mode)
         {
@@ -348,7 +413,7 @@ public class FlyingSword : MonoBehaviour
         }
         if (trail != null)
         {
-            trail.widthMultiplier = Mathf.Lerp(baseTrailWidth * bodyScale, strikeTrailWidth, speedFeel);
+            trail.widthMultiplier = Mathf.Lerp(baseTrailWidth * bodyScale, strikeTrailWidth, speedFeel) * alpha;   // mờ cùng thân kiếm
             trail.time = Mathf.Lerp(baseTrailTime, strikeTrailTime, speedFeel);
         }
     }

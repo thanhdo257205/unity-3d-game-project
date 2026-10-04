@@ -7402,6 +7402,7 @@ GameObject:
   - component: {fileID: 1579720755}
   - component: {fileID: 1579720757}
   - component: {fileID: 1579720758}
+  - component: {fileID: 1579720759}
   m_Layer: 0
   m_Name: BayKiem
   m_TagString: Untagged
@@ -7440,17 +7441,23 @@ MonoBehaviour:
   formationSettleTime: 0.4
   dampingRatio: 0.8
   maxSwordSpeed: 70
-  formationSwordScale: 0.7
+  formationSwordScale: 0.8
   scaleGrowTime: 0.2
   scaleShrinkTime: 0.35
+  formationEmissionBoost: 2
+  behindViewAngle: 50
+  behindOpacity: 0.35
+  opacityFadeTime: 0.25
+  opacityHysteresis: 3
   wheel:
-    behindDistance: 0.63
+    behindDistance: 0.58
     heightOffset: 0
-    innerRadius: 0.78
-    outerExtraRadius: 0.21
-    outerExtraBack: 0.08
+    innerRadius: 0.28
+    outerExtraRadius: 0.17
+    outerExtraBack: 0.03
     spinSpeed: 12
-    wobbleAmplitude: 0.04
+    outerSpinRatio: 1
+    wobbleAmplitude: 0.02
     wobbleFrequency: 0.7
   ring:
     radius: 1
@@ -7591,6 +7598,27 @@ MonoBehaviour:
     DissipationDistance: 100
     PropagationSpeed: 343
   DefaultVelocity: {x: 0, y: -1, z: 0}
+--- !u!114 &1579720759
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1579720754}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cec88edbadb719849bf99cb3e85cce48, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SwordHalo
+  swarm: {fileID: 1579720755}
+  haloMaterial: {fileID: 2100000, guid: f18f609ec25c3294fa62eac880858b49, type: 2}
+  tint: {r: 0.3, g: 1, b: 0.65, a: 1}
+  peakOpacity: 0.3
+  radiusRatio: 1
+  behindOffset: 0.05
+  breathAmount: 0.04
+  breathFrequency: 0.5
+  presenceSpeed: 4
 --- !u!1 &1621702564
 GameObject:
   m_ObjectHideFlags: 0
@@ -8586,6 +8614,7 @@ MonoBehaviour:
   hotbarSlotColor: {r: 0.04, g: 0.05, b: 0.08, a: 0.78}
   hotbarSelectedColor: {r: 0.22, g: 0.18, b: 0.07, a: 0.92}
   drainWarnThreshold: 8
+  drainTextColor: {r: 1, g: 0.6, b: 0.15, a: 1}
   drainPulseRate: 1.6
   manaWarnTime: 1.2
   vignetteTime: 0.4

@@ -3,35 +3,38 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Kiếm Luân (thay đội hình Quạt): bánh xe kiếm tròn đầy dựng đứng sau lưng, vuông góc với hướng nhìn của nhân vật.
-/// Kiếm xếp đều đủ 360 độ, mũi chĩa ra ngoài, chuôi hướng về tâm; vành rỗng ở giữa để thấy nhân vật qua lỗ.
-/// Hai lớp so le (một nửa số kiếm mỗi lớp): lớp ngoài lệch nửa bước góc, lùi ra sau thêm một chút, xoay ngược chiều lớp trong.
-/// Cả bánh xe xoay chậm, mỗi kiếm dao động nhẹ ra vào cho khỏi cứng đơ.
-/// Chỗ đứng của mỗi kiếm tính theo tổng số kiếm, nên kiếm phóng đi thì chỗ của nó để trống tới khi kiếm về.
+/// Kiếm Luân (thay đội hình Quạt): vầng kiếm tròn đầy dựng đứng sau lưng, vuông góc với hướng nhìn của nhân vật, giống vầng hào quang tỏa đều.
+/// Kiếm xếp đều đủ 360 độ, mũi chĩa ra ngoài, chuôi chụm về tâm; ở giữa chỉ chừa một lỗ nhỏ.
+/// Hai lớp so le (một nửa số kiếm mỗi lớp): lớp ngoài lệch nửa bước góc và đứng xa tâm hơn một chút nên mũi kiếm so le dài - ngắn.
+/// Cả hai lớp xoay CÙNG chiều cùng tốc độ (đổi "Tỉ lệ xoay lớp ngoài" để cho xoay ngược) nên khoảng cách góc giữa các kiếm luôn đều, không bao giờ đứng thành cặp.
+/// Mỗi kiếm dao động nhẹ ra vào cho khỏi cứng đơ. Chỗ đứng tính theo tổng số kiếm, nên kiếm phóng đi thì chỗ của nó để trống tới khi kiếm về.
 /// </summary>
 [Serializable]
 public class WheelFormation : IFormation
 {
-    [Tooltip("Tâm bánh xe cách điểm neo (ngang bả vai) bao xa về phía sau (mét). 0.63 tức là cách mặt lưng khoảng 0.4m.")]
-    public float behindDistance = 0.63f;
+    [Tooltip("Tâm vầng kiếm cách điểm neo (ngang bả vai) bao xa về phía sau (mét). 0.58 tức là tâm nằm giữa hai bả vai, cách mặt lưng khoảng 0.35m.")]
+    public float behindDistance = 0.58f;
 
-    [Tooltip("Độ cao tâm bánh xe so với điểm neo (điểm neo ngang bả vai nên 0 là tâm ngang bả vai). Số âm là thấp xuống.")]
+    [Tooltip("Độ cao tâm vầng kiếm so với điểm neo (điểm neo ngang bả vai nên 0 là tâm ngang bả vai). Số âm là thấp xuống.")]
     public float heightOffset = 0f;
 
-    [Tooltip("Khoảng cách từ tâm tới tâm chuôi kiếm lớp trong (mét). Kiếm trong đội hình thu còn 0.7 lần nên 0.78 cho chuôi cách tâm khoảng 0.7m, để lại lỗ tròn ở giữa.")]
-    [Min(0.2f)] public float innerRadius = 0.78f;
+    [Tooltip("Khoảng cách từ tâm tới tâm chuôi kiếm lớp trong (mét). 0.28 cho vầng kiếm chụm sát tâm, chỉ chừa lỗ nhỏ ở giữa.")]
+    [Min(0.05f)] public float innerRadius = 0.28f;
 
-    [Tooltip("Lớp ngoài đứng xa tâm hơn lớp trong bao nhiêu (mét). Với kiếm thu 0.7 lần, 0.21 cho mũi kiếm lớp ngoài chạm bán kính khoảng 1.6m.")]
-    [Min(0f)] public float outerExtraRadius = 0.21f;
+    [Tooltip("Lớp ngoài đứng xa tâm hơn lớp trong bao nhiêu (mét). Với kiếm thu 0.8 lần, 0.17 cho mũi kiếm lớp ngoài xa tâm khoảng 1.15m (cả vầng cao ~2.3m).")]
+    [Min(0f)] public float outerExtraRadius = 0.17f;
 
     [Tooltip("Lớp ngoài lùi ra sau thêm bao nhiêu so với lớp trong (mét), để hai lớp không đâm vào nhau.")]
-    [Min(0f)] public float outerExtraBack = 0.08f;
+    [Min(0f)] public float outerExtraBack = 0.03f;
 
-    [Tooltip("Tốc độ xoay của bánh xe (độ/giây). Lớp trong xoay thuận, lớp ngoài xoay ngược chiều.")]
+    [Tooltip("Tốc độ xoay của vầng kiếm (độ/giây), lớp trong.")]
     public float spinSpeed = 12f;
 
+    [Tooltip("Tốc độ xoay lớp ngoài so với lớp trong. 1 = cùng chiều cùng tốc độ (kiếm luôn cách đều, không thành cặp). -1 = ngược chiều (thỉnh thoảng hai lớp trùng góc và kiếm đứng thành cặp).")]
+    public float outerSpinRatio = 1f;
+
     [Tooltip("Mỗi kiếm dao động ra vào quanh chỗ đứng bao nhiêu (mét).")]
-    [Min(0f)] public float wobbleAmplitude = 0.04f;
+    [Min(0f)] public float wobbleAmplitude = 0.02f;
 
     [Tooltip("Số lần dao động mỗi giây.")]
     [Min(0f)] public float wobbleFrequency = 0.7f;
@@ -39,6 +42,18 @@ public class WheelFormation : IFormation
     public string DisplayName => "Kiếm Luân";
 
     public bool ContactDamage => false;
+
+    /// <summary>Tâm vầng kiếm trong thế giới (không tính xoay): sau lưng, giữa hai bả vai.</summary>
+    public Vector3 GetCenter(in FormationContext ctx)
+    {
+        return ctx.origin - (ctx.body * Vector3.forward) * behindDistance + Vector3.up * heightOffset;
+    }
+
+    /// <summary>Khoảng cách xa nhất từ tâm tới mũi kiếm (mét) với thanh kiếm có mũi cách pivot tipOffset, thu nhỏ theo swordScale.</summary>
+    public float OuterRadius(float tipOffset, float swordScale)
+    {
+        return innerRadius + outerExtraRadius + tipOffset * swordScale;
+    }
 
     /// <summary>Chỗ đứng chẵn (0, 2, 4...) thuộc lớp trong, chỗ lẻ thuộc lớp ngoài; mỗi lớp một nửa số kiếm.</summary>
     private static void LayerInfo(int index, int count, out int layer, out int indexInLayer, out int layerCount)
@@ -49,7 +64,7 @@ public class WheelFormation : IFormation
         if (layerCount < 1) layerCount = 1;
     }
 
-    /// <summary>Góc gốc (độ, 0 = thẳng lên, dương = sang phải) của chỗ đứng index khi bánh xe chưa xoay. Lớp ngoài lệch nửa bước.</summary>
+    /// <summary>Góc gốc (độ, 0 = thẳng lên, dương = sang phải) của chỗ đứng index khi vầng kiếm chưa xoay. Lớp ngoài lệch nửa bước.</summary>
     private static float BaseAngle(int index, int count)
     {
         int layer, j, m;
@@ -62,8 +77,8 @@ public class WheelFormation : IFormation
         int layer, j, m;
         LayerInfo(index, count, out layer, out j, out m);
 
-        float sign = layer == 0 ? 1f : -1f;
-        float angle = (BaseAngle(index, count) + sign * spinSpeed * ctx.time) * Mathf.Deg2Rad;
+        float spin = spinSpeed * (layer == 0 ? 1f : outerSpinRatio);
+        float angle = (BaseAngle(index, count) + spin * ctx.time) * Mathf.Deg2Rad;
 
         Vector3 forward = ctx.body * Vector3.forward;
         Vector3 right = ctx.body * Vector3.right;
@@ -71,7 +86,7 @@ public class WheelFormation : IFormation
 
         float wobble = wobbleAmplitude * Mathf.Sin(ctx.time * wobbleFrequency * Mathf.PI * 2f + index * 1.7f);
         float radius = innerRadius + (layer == 1 ? outerExtraRadius : 0f) + wobble;
-        Vector3 center = ctx.origin - forward * (behindDistance + (layer == 1 ? outerExtraBack : 0f)) + Vector3.up * heightOffset;
+        Vector3 center = GetCenter(ctx) - forward * (layer == 1 ? outerExtraBack : 0f);
 
         SwordSlot slot;
         slot.position = center + dir * radius;
@@ -80,8 +95,8 @@ public class WheelFormation : IFormation
     }
 
     /// <summary>
-    /// Thứ tự lấp các chỗ khi n kiếm lần lượt bay ra: bắt đầu từ đỉnh bánh xe rồi luân phiên bên phải - bên trái,
-    /// mỗi lần xa đỉnh thêm một bước, nên bánh xe mở ra đối xứng như một vầng sáng.
+    /// Thứ tự lấp các chỗ khi n kiếm lần lượt bay ra: bắt đầu từ đỉnh vầng kiếm rồi luân phiên bên phải - bên trái,
+    /// mỗi lần xa đỉnh thêm một bước, nên vầng kiếm mở ra đối xứng như một vầng sáng.
     /// </summary>
     public static int[] DeployOrder(int n)
     {
