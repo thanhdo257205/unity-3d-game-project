@@ -8537,7 +8537,7 @@ MonoBehaviour:
   chestBone: {fileID: 0}
   bodyRoot: {fileID: 0}
   modelPrefab: {fileID: 8995385251455372924, guid: 49874f7d3f11b504a9a3fb44a15288fa, type: 3}
-  rootOffset: {x: 0, y: -0.1, z: -0.32}
+  rootOffset: {x: 0, y: 0.04, z: -0.32}
   openTime: 0.5
   closeTime: 0.4
   blendTime: 0.3

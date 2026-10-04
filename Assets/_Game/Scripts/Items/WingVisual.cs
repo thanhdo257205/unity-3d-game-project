@@ -24,7 +24,7 @@ public class WingVisual : MonoBehaviour
 
     [Header("Vị trí gốc cánh")]
     [Tooltip("Lệch của gốc cánh so với xương ngực (Spine2), tính theo hướng thân người (phải, lên, trước). Y âm = hạ xuống (-0.10 là khoảng giữa lưng); Z âm = ra sau lưng để khung cánh không đâm vào đầu và vai áo.")]
-    [SerializeField] private Vector3 rootOffset = new Vector3(0f, -0.10f, -0.32f);
+    [SerializeField] private Vector3 rootOffset = new Vector3(0f, 0.04f, -0.32f);
 
     [Header("Xòe, gập, vỗ")]
     [Tooltip("Thời gian cánh xòe (giây). Clip gốc dài 0.5s; số khác thì phát nhanh/chậm lại cho khớp.")]
