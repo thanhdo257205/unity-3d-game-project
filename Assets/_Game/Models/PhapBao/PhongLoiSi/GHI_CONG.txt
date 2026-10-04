@@ -1,0 +1,14 @@
+GHI CÔNG - Phong Lôi Sí (风雷翅)
+
+Mô hình gốc: "风雷翅 开源版本" (bản mã nguồn mở, Blender 4.5) của tác giả 芒果小子 (Mango Boy / "Mangguo Xiaozi"),
+đăng trên 模之屋 (Modown). Dùng cho mục đích cá nhân, phi thương mại.
+
+Bản trong dự án này là bản đã chỉnh cho game (Phàm Kiếm Lục):
+- Giảm số tam giác (lông vũ lấy mẫu thấp, xương cánh giảm bằng Decimate), tổng khoảng 16.000 tam giác cho hai cánh.
+- Thu nhỏ sải cánh còn khoảng 3.4m; gốc toạ độ ở giữa hai gốc cánh.
+- Dựng lại bộ xương đơn giản (mỗi cánh 3 xương) và 4 animation (Open, Flap, Glide, Close) vì rig gốc (Auto-Rig Pro, 278 xương,
+  nhiều xương điều khiển/driver) không có animation đi kèm.
+- Màu lông gradient được bake vào vertex color; texture thu nhỏ còn 1024.
+Tất cả các thay đổi trên không do tác giả gốc thực hiện. Nếu sau này phát hành thương mại phải xin phép lại tác giả gốc.
+
+File gốc (.blend, .rar) KHÔNG nằm trong git; bản xử lý nằm ở Downloads\PhongLoiSi\ trên máy tác giả dự án.
