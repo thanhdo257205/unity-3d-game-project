@@ -65,6 +65,9 @@ public class WingVisual : MonoBehaviour
     private float pulse;
     private bool built;
 
+    /// <summary>Sấm sét nằm trong prefab cánh (null nếu prefab chưa có).</summary>
+    public WingLightning Lightning { get; private set; }
+
     private Quaternion orientation = Quaternion.identity;
     private Quaternion offsetFrame = Quaternion.identity;
     private bool hasOrientation;
@@ -136,6 +139,7 @@ public class WingVisual : MonoBehaviour
             boneR[i] = FindDeep(inst.transform, "Canh_P" + (i + 1));
         }
         CacheFoldedPose(inst);
+        Lightning = inst.GetComponentInChildren<WingLightning>(true);
         foreach (SkinnedMeshRenderer smr in inst.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             renderers.Add(smr);

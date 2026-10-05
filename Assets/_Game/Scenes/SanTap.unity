@@ -9485,7 +9485,7 @@ MonoBehaviour:
   cruiseFlap: {x: 18, y: 0.9}
   boostFlap: {x: 34, y: 0.55}
   levelGround: 0.3
-  levelFly: 0.65
+  levelFly: 0.6
   levelBoost: 1
   flightExtraDistance: 1.5
   flightExtraFov: 8

@@ -19,6 +19,7 @@ public static class FlightPhotoTool
         public string name;
         public float duration;
         public bool sample;
+        public bool flash;
         public Action begin;
         public Action end;
     }
@@ -58,6 +59,30 @@ public static class FlightPhotoTool
         Debug.Log("[Ảnh bay] Bắt đầu.");
     }
 
+    /// <summary>Ảnh sấm sét: cánh mở đứng yên, bay thường, tăng tốc (mỗi trạng thái chụp ngay lúc sét chính lóe), kèm thời gian khung hình trung bình.</summary>
+    public static void RunSet(string tag)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[Ảnh bay] Cần đang Play."); return; }
+        prefix = tag;
+        Init();
+        Hotbar hb = pc.GetComponent<Hotbar>();
+        if (!pl.IsOpen) { hb.Select(3); hb.TryUseSelected(); }
+        steps = new List<Step>();
+        steps.Add(new Step { name = "mo", duration = 1.2f });
+        steps.Add(new Step { name = "dung", duration = 4.5f, sample = false, flash = true, begin = () => ResetFrames(), end = () => { }, });
+        steps.Add(new Step { name = "len", duration = 1.6f, begin = () => pl.TestSetInput(Vector2.zero, 1f, false) });
+        steps.Add(new Step { name = "thuong", duration = 4.5f, flash = true, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, false); ResetFrames(); } });
+        steps.Add(new Step { name = "tangtoc", duration = 4.5f, flash = true, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, true); ResetFrames(); } });
+        steps.Add(new Step { name = "xong", duration = 0.1f, begin = () => pl.TestClearInput() });
+        index = -1;
+        stepStart = 0f;
+        EditorApplication.update += Tick;
+        Debug.Log("[Ảnh bay] Bắt đầu (sấm sét).");
+    }
+
+    private static float frameSum; private static int frameCount; private static bool flashShot;
+    private static void ResetFrames() { frameSum = 0f; frameCount = 0; flashShot = false; }
+
     private static void Init()
     {
         pl = UnityEngine.Object.FindAnyObjectByType<PhongLoiSi>();
@@ -73,6 +98,8 @@ public static class FlightPhotoTool
         if (!Application.isPlaying) { EditorApplication.update -= Tick; return; }
         if (index < 0 || Time.realtimeSinceStartup - stepStart >= steps[index].duration)
         {
+            if (index >= 0 && steps[index].flash)
+                Debug.Log("[Ảnh bay] " + steps[index].name + " khung hình trung bình " + (frameCount > 0 ? (frameSum / frameCount * 1000f).ToString("F1") : "?") + " ms (" + (frameCount > 0 ? (frameCount / frameSum).ToString("F0") : "?") + " fps) trên " + frameCount + " khung, cuongDoSet=" + pl.Lightning.CuongDoSet.ToString("F2"));
             if (index >= 0 && steps[index].end != null)
             {
                 if (steps[index].sample) Debug.Log("[Ảnh bay] " + steps[index].name + " khoảng hở nhỏ nhất: đầu=" + minHead.ToString("F2") + "m (xuyên " + headHits + " đỉnh), thân=" + minTorso.ToString("F2") + "m (xuyên " + torsoHits + " đỉnh)");
@@ -84,6 +111,16 @@ public static class FlightPhotoTool
             if (steps[index].begin != null) steps[index].begin();
         }
         if (steps[index].sample && Time.realtimeSinceStartup - stepStart > 0.8f) Sample();
+        if (steps[index].flash && Time.realtimeSinceStartup - stepStart > 1.2f)
+        {
+            frameSum += Time.unscaledDeltaTime; frameCount++;
+            WingLightning wl = pl.Lightning;
+            if (!flashShot && wl != null && wl.IsFlashing && Time.time - wl.LastFlashStart >= 0.025f)
+            {
+                flashShot = true;
+                Shoot(steps[index].name, false);
+            }
+        }
         EditorApplication.QueuePlayerLoopUpdate();
     }
 
@@ -147,7 +184,7 @@ public static class FlightPhotoTool
         Vector2 mn = new Vector2(1e9f, 1e9f), mx = new Vector2(-1e9f, -1e9f);
         foreach (Renderer r in pc.GetComponentsInChildren<Renderer>())
         {
-            if (!r.enabled || r is TrailRenderer || r is ParticleSystemRenderer || r is LineRenderer) continue;
+            if (!r.enabled || !(r is SkinnedMeshRenderer)) continue;   // khung bao chỉ tính thân người và cánh
             Bounds bd = r.bounds;
             for (int i = 0; i < 8; i++)
             {

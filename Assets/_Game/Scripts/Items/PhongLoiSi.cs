@@ -26,7 +26,7 @@ public class PhongLoiSi : MonoBehaviour
     [Tooltip("Hình dáng đôi cánh (đối tượng PhongLoiSi_Canh).")]
     [SerializeField] private WingVisual visual;
 
-    [Tooltip("Sấm sét của cánh (cùng đối tượng với cánh).")]
+    [Tooltip("Sấm sét của cánh. Thường để trống: tự lấy từ prefab cánh (WingVisual.Lightning) sau khi cánh được dựng.")]
     [SerializeField] private WingLightning lightning;
 
     [Tooltip("Đàn kiếm: Kiếm Luân bị đẩy ra sau khi cánh mở. Có thể để trống.")]
@@ -196,15 +196,15 @@ public class PhongLoiSi : MonoBehaviour
     [Tooltip("Bay tăng tốc: xòe hết sải, đầu cánh cụp về sau, vỗ từng nhịp dài và mạnh (biên độ lớn, nhịp chậm).")]
     [SerializeField] private Vector2 boostFlap = new Vector2(34f, 0.55f);
 
-    [Header("Sấm sét theo trạng thái (0-1.5)")]
-    [Tooltip("Cường độ sét khi cánh mở nhưng đứng yên (nhẹ).")]
-    [SerializeField, Min(0f)] private float levelGround = 0.3f;
+    [Header("Sấm sét theo trạng thái (cuongDoSet 0-1; cánh xếp = 0)")]
+    [Tooltip("Cường độ sét (cuongDoSet) khi cánh mở nhưng đứng trên đất (nhẹ, 30%).")]
+    [SerializeField, Range(0f, 1f)] private float levelGround = 0.3f;
 
-    [Tooltip("Cường độ sét khi bay (vừa).")]
-    [SerializeField, Min(0f)] private float levelFly = 0.65f;
+    [Tooltip("Cường độ sét khi bay thường (vừa, 60%; lơ lửng thấp hơn một chút).")]
+    [SerializeField, Range(0f, 1f)] private float levelFly = 0.6f;
 
-    [Tooltip("Cường độ sét khi bay tăng tốc (mạnh).")]
-    [SerializeField, Min(0f)] private float levelBoost = 1f;
+    [Tooltip("Cường độ sét khi bay tăng tốc (100%, kèm vệt sáng mảnh sau đầu cánh).")]
+    [SerializeField, Range(0f, 1f)] private float levelBoost = 1f;
 
     [Header("Camera khi bay")]
     [Tooltip("Camera lùi xa thêm bấy nhiêu mét khi đang bay.")]
@@ -317,7 +317,17 @@ public class PhongLoiSi : MonoBehaviour
     public WingVisual Visual => visual;
 
     /// <summary>Sấm sét của cánh (cho PhaKhong tăng cường).</summary>
-    public WingLightning Lightning => lightning;
+    public WingLightning Lightning => Lx;
+
+    /// <summary>Sấm sét lấy lười: prefab cánh được dựng lúc chạy nên lấy từ WingVisual khi cần.</summary>
+    private WingLightning Lx
+    {
+        get
+        {
+            if (lightning == null && visual != null) lightning = visual.Lightning;
+            return lightning;
+        }
+    }
 
     private void Awake()
     {
@@ -421,7 +431,7 @@ public class PhongLoiSi : MonoBehaviour
         isOpen = true;
         fluttering = false;
         if (visual != null) { visual.SetFlicker(false); visual.Open(); }
-        if (lightning != null) lightning.PlayShoulderFlash();
+        if (Lx != null) Lx.PlayShoulderFlash();
         if (feedback != null) feedback.Shake(openShake);
         if (swarm != null) swarm.WheelPushTarget = wheelPush;
         OpenChanged?.Invoke(true);
@@ -435,7 +445,7 @@ public class PhongLoiSi : MonoBehaviour
         fluttering = false;
         if (flying) EndFlight(false);
         if (visual != null) { visual.SetFlicker(false); visual.Close(); }
-        if (lightning != null) { lightning.PlayBurst(0.4f); lightning.SetStreaks(false); }
+        if (Lx != null) { Lx.PlayBurst(0.4f); Lx.SetStreaks(false); Lx.SetFlying(false); }
         if (swarm != null) swarm.WheelPushTarget = 0f;
         CurrentDrainPerSecond = 0f;
         OpenChanged?.Invoke(false);
@@ -448,7 +458,7 @@ public class PhongLoiSi : MonoBehaviour
         fluttering = false;
         if (flying) EndFlight(false);
         if (visual != null) { visual.SetFlicker(false); visual.SnapTo(false); }
-        if (lightning != null) { lightning.SetLevel(0f); lightning.SetStreaks(false); }
+        if (Lx != null) { Lx.SetLevel(0f); Lx.SetStreaks(false); Lx.SetFlying(false); }
         if (swarm != null) swarm.WheelPushTarget = 0f;
         FrozenForRift = false;
         RiftFovBoost = 0f;
@@ -471,6 +481,7 @@ public class PhongLoiSi : MonoBehaviour
         player.FlightActive = true;
         if (melee != null && melee.IsAttacking && !melee.AttackInFlight) melee.CancelAttack();
         if (animator != null) animator.CrossFadeInFixedTime("Bay", 0.3f, 0);
+        if (Lx != null) { Lx.SetFlying(true); Lx.PlayTakeoffBurst(); }
         FlightChanged?.Invoke(true);
     }
 
@@ -497,7 +508,12 @@ public class PhongLoiSi : MonoBehaviour
         if (animator != null && stats != null && stats.IsAlive)
             animator.CrossFadeInFixedTime(landed ? "Locomotion" : "Fall", 0.2f, 0);
         fallPeak = transform.position.y;
-        if (lightning != null) lightning.SetStreaks(false);
+        if (Lx != null)
+        {
+            Lx.SetStreaks(false);
+            Lx.SetFlying(false);
+            if (landed) Lx.PlayLandingBurst(transform.position);
+        }
         FlightChanged?.Invoke(false);
     }
 
@@ -891,7 +907,7 @@ public class PhongLoiSi : MonoBehaviour
         if (!isOpen)
         {
             flap = groundFlap;
-            level = visual.IsClosing ? levelGround : 0f;
+            level = 0f;   // cánh xếp: tắt hết
         }
         else if (!flying)
         {
@@ -918,10 +934,10 @@ public class PhongLoiSi : MonoBehaviour
         flapHz = Mathf.SmoothDamp(flapHz, flap.y, ref flapHzVel, 0.3f);
         visual.SetMotion(flapAmp, flapHz, sweep);
 
-        if (lightning != null)
+        if (Lx != null)
         {
-            lightning.SetLevel(level);
-            lightning.SetStreaks(streams && !FrozenForRift);
+            Lx.SetLevel(Mathf.Clamp01(level));
+            Lx.SetStreaks(streams && !FrozenForRift);
         }
     }
 
