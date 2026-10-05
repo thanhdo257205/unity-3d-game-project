@@ -74,11 +74,30 @@ public class CameraOrbit : MonoBehaviour
         SnapToTarget();
     }
 
+    private Vector3 glideFrom;
+    private float glideStart = -10f, glideDuration = 0.3f;
+
+    /// <summary>
+    /// Camera lướt mượt từ vị trí fromPos tới chỗ nhân vật (ngay cả khi nhân vật vừa dịch chuyển xa) trong seconds giây, không nhảy cắt (Phá Không).
+    /// Gọi ngay trước khi dời nhân vật, với fromPos là vị trí điểm ngắm hiện tại (transform.position của đối tượng này).
+    /// </summary>
+    public void Glide(Vector3 fromPos, float seconds)
+    {
+        glideFrom = fromPos;
+        glideStart = Time.time;
+        glideDuration = Mathf.Max(0.02f, seconds);
+    }
+
     /// <summary>Đặt vị trí theo nhân vật và áp dụng góc xoay hiện tại.</summary>
     private void SnapToTarget()
     {
         if (followTarget != null)
-            transform.position = followTarget.position + Vector3.up * heightOffset;
+        {
+            Vector3 target = followTarget.position + Vector3.up * heightOffset;
+            float g = (Time.time - glideStart) / glideDuration;
+            if (g >= 0f && g < 1f) target = Vector3.Lerp(glideFrom, target, g * g * (3f - 2f * g));
+            transform.position = target;
+        }
         transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
     }
 

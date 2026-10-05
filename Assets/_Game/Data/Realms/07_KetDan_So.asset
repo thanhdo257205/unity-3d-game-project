@@ -17,4 +17,5 @@ MonoBehaviour:
   maxSwords: 56
   maxMana: 1000
   majorRealm: 2
+  phaKhongDistance: 150
   unlockNote: "Ki\u1EBFm tr\u1EADn nhi\u1EC1u t\u1EA7ng"

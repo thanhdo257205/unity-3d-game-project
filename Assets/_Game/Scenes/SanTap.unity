@@ -8658,6 +8658,7 @@ MonoBehaviour:
   life: {fileID: 2127460594}
   hotbar: {fileID: 2127460597}
   wings: {fileID: 2127460599}
+  phaKhong: {fileID: 2127460600}
   fontAsset: {fileID: 11400000, guid: 0148cf6b57cd5884ba9c564766c4062a, type: 2}
   healthColor: {r: 0.86, g: 0.18, b: 0.16, a: 1}
   manaColor: {r: 0.2, g: 0.52, b: 0.95, a: 1}
@@ -9069,6 +9070,7 @@ GameObject:
   - component: {fileID: 2127460597}
   - component: {fileID: 2127460598}
   - component: {fileID: 2127460599}
+  - component: {fileID: 2127460600}
   m_Layer: 0
   m_Name: NhanVat
   m_TagString: Player
@@ -9496,6 +9498,51 @@ MonoBehaviour:
   cameraSmoothTime: 0.45
   fallSafeHeight: 12
   fallDamagePerMeter: 4
+--- !u!114 &2127460600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127460589}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1c521a3910e9b049a8237b0b7b50b9b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PhaKhong
+  wings: {fileID: 2127460599}
+  congPrefab: {fileID: 9072956549803665336, guid: 095d4e667c2387340b3ffd6abdb5d487, type: 3}
+  feedback: {fileID: 1579720757}
+  matVongNham: {fileID: 2100000, guid: 67fcd42bfab50bd45ba4f92e0e08c106, type: 2}
+  matSongXungKich: {fileID: 2100000, guid: 8b607d620455dd245b20c9606dd3c293, type: 2}
+  matChopSang: {fileID: 2100000, guid: 5c650689690477b468fb09885fe8bb1b, type: 2}
+  cost: 50
+  cooldown: 6
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 256
+  stopBeforeObstacle: 1
+  minDistance: 6
+  ceiling: 60
+  bodyCenterHeight: 1
+  clearanceRadius: 0.35
+  aimRingRadius: 1.6
+  entranceDistance: 2.5
+  exitBehind: 2.5
+  timeDash: 0.25
+  timeVanish: 0.4
+  timeReappear: 0.7
+  timeEnd: 0.9
+  cameraGlideTime: 0.3
+  wingFoldAmount: 0.9
+  fovBoost: 10
+  shockRadius: 5
+  shockTime: 0.25
+  shockDamage: 25
+  shockStun: 0.6
+  shockShake: 0.08
+  flashLight: 10
+  debugKeys: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

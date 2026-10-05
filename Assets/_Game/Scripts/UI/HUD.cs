@@ -36,6 +36,9 @@ public class HUD : MonoBehaviour
     [Tooltip("Pháp bảo Phong Lôi Sí (đối tượng NhanVat): ô của nó có viền sáng khi cánh đang mở, và pháp lực cánh rút được cộng vào con số tiêu hao.")]
     [SerializeField] private PhongLoiSi wings;
 
+    [Tooltip("Kỹ năng Phá Không (đối tượng NhanVat): HUD vẽ ô hồi chiêu phía trên ô 4 với số giây đếm ngược; ô nháy đỏ nhẹ khi bấm V mà thiếu pháp lực / đang hồi. Để trống thì tự tìm.")]
+    [SerializeField] private PhaKhong phaKhong;
+
     [Header("Phông chữ")]
     [Tooltip("Phông TextMeshPro dùng cho mọi chữ trên màn hình (phải có đủ dấu tiếng Việt). Mặc định là Inter (Assets/_Game/UI/Fonts/Inter_Regular_SDF). Để trống thì dùng phông mặc định của TextMeshPro.")]
     [SerializeField] private TMP_FontAsset fontAsset;
@@ -175,6 +178,13 @@ public class HUD : MonoBehaviour
     private CanvasGroup deathGroup;
     private Sprite whiteSprite;
 
+    // Ô hồi chiêu Phá Không (phía trên ô 4)
+    private RectTransform riftRoot;
+    private Image riftBack, riftCool;
+    private TextMeshProUGUI riftKey, riftTime;
+    private const float RiftBoxSize = 60f;
+    private const int RiftSlotIndex = 3;
+
     private float manaWarnUntil = -10f;
     private float vignetteStart = -10f;
     private float deathFade;
@@ -212,6 +222,7 @@ public class HUD : MonoBehaviour
     private void Awake()
     {
         font = fontAsset != null ? fontAsset : TMP_Settings.defaultFontAsset;
+        if (phaKhong == null) phaKhong = FindAnyObjectByType<PhaKhong>();
         whiteSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height), new Vector2(0.5f, 0.5f));
         BuildUI();
         EnsureEventSystem();
@@ -283,6 +294,7 @@ public class HUD : MonoBehaviour
         BuildStatusPanel();
         BuildSlots();
         BuildHotbar();
+        BuildRiftIcon();
         BuildRealmPanel();
         BuildStonesUI();
         BuildDeathPanel();
@@ -456,7 +468,7 @@ public class HUD : MonoBehaviour
         }
 
         itemNameText = MakeText(root, "TenVatPham", "", 30, TextAnchor.MiddleCenter, textColor);
-        SetRect(itemNameText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, hotbarBottom + size * hotbarSelectedScale + 14f), new Vector2(700f, 44f));
+        SetRect(itemNameText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, hotbarBottom + size * hotbarSelectedScale + 14f + RiftBoxSize + 16f), new Vector2(700f, 44f));
         itemNameText.rectTransform.pivot = new Vector2(0.5f, 0f);
         Outline(itemNameText);
         itemNameText.gameObject.SetActive(false);
@@ -523,6 +535,71 @@ public class HUD : MonoBehaviour
             itemNameText.color = c;
         }
         else if (itemNameText.gameObject.activeSelf) itemNameText.gameObject.SetActive(false);
+    }
+
+    /// <summary>Ô hồi chiêu Phá Không nằm ngay phía trên ô 4: chữ V khi sẵn sàng, số giây đếm ngược khi đang hồi (lớp tối thu dần từ trên xuống), nháy đỏ nhẹ khi bấm V bị từ chối.</summary>
+    private void BuildRiftIcon()
+    {
+        float size = hotbarSlotSize;
+        Image back = NewObject<Image>("HoiChieu_PhaKhong", root);
+        back.sprite = whiteSprite;
+        back.color = hotbarSlotColor;
+        back.raycastTarget = false;
+        RectTransform rt = back.rectTransform;
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.sizeDelta = new Vector2(RiftBoxSize, RiftBoxSize);
+        rt.anchoredPosition = new Vector2((RiftSlotIndex - (Hotbar.SlotCount - 1) * 0.5f) * (size + hotbarGap), hotbarBottom + size * hotbarSelectedScale + 8f);
+        AddFrame(rt, borderColor, 2f);
+
+        Image cool = NewObject<Image>("LopToi", rt);
+        cool.sprite = whiteSprite;
+        cool.color = new Color(0f, 0f, 0f, 0.62f);
+        cool.raycastTarget = false;
+        cool.type = Image.Type.Filled;
+        cool.fillMethod = Image.FillMethod.Vertical;
+        cool.fillOrigin = 1;   // đầy từ trên xuống, nên khi fillAmount giảm lớp tối thu dần về phía trên
+        Stretch(cool.rectTransform);
+
+        TextMeshProUGUI key = MakeText(rt, "Phim", "V", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.5f));
+        Stretch(key.rectTransform);
+        Outline(key);
+        TextMeshProUGUI time = MakeText(rt, "Giay", "", 30, TextAnchor.MiddleCenter, Color.white);
+        Stretch(time.rectTransform);
+        Outline(time);
+        TextMeshProUGUI label = MakeText(rt, "Ten", "Phá Không", 15, TextAnchor.LowerCenter, new Color(textColor.r, textColor.g, textColor.b, 0.75f));
+        Stretch(label.rectTransform);
+        label.rectTransform.offsetMin = new Vector2(-30f, RiftBoxSize - 2f); label.rectTransform.offsetMax = new Vector2(30f, 20f);
+        label.alignment = TextAlignmentOptions.Center;
+        Outline(label);
+
+        riftRoot = rt; riftBack = back; riftCool = cool; riftKey = key; riftTime = time;
+        riftRoot.gameObject.SetActive(false);
+    }
+
+    private void UpdateRiftIcon()
+    {
+        if (riftRoot == null) return;
+        bool show = phaKhong != null && wings != null && hotbar != null && wings.WingItem != null && hotbar.GetItem(RiftSlotIndex) == wings.WingItem;
+        if (riftRoot.gameObject.activeSelf != show) riftRoot.gameObject.SetActive(show);
+        if (!show) return;
+        float rem = phaKhong.CooldownRemaining;
+        bool cooling = rem > 0.001f;
+        riftCool.fillAmount = cooling ? Mathf.Clamp01(rem / Mathf.Max(0.01f, phaKhong.Cooldown)) : 0f;
+        riftCool.enabled = cooling;
+        riftTime.text = cooling ? Mathf.CeilToInt(rem).ToString() : "";
+        riftKey.enabled = !cooling;
+        bool usable = wings.ReadyForRift;
+        // Nháy đỏ nhẹ khi bấm V bị từ chối (0.45 giây)
+        float rt = Time.unscaledTime - phaKhong.RejectedAtUnscaled;
+        Color baseColor = hotbarSlotColor;
+        if (rt >= 0f && rt < 0.45f)
+        {
+            float pulse = 0.5f + 0.5f * Mathf.Sin(rt * 28f);
+            riftBack.color = Color.Lerp(baseColor, new Color(0.75f, 0.12f, 0.1f, 0.9f), (1f - rt / 0.45f) * (0.5f + 0.5f * pulse));
+        }
+        else riftBack.color = phaKhong.IsAiming ? hotbarSelectedColor : baseColor;
+        riftKey.color = usable || cooling ? new Color(1f, 0.9f, 0.5f) : new Color(1f, 0.9f, 0.5f, 0.45f);
     }
 
     /// <summary>Chữ thay biểu tượng: các chữ cái đầu của tên (tối đa 3).</summary>
@@ -618,6 +695,7 @@ public class HUD : MonoBehaviour
         UpdateSwordInfo();
         UpdateLayout();
         UpdateHotbar();
+        UpdateRiftIcon();
         UpdateWarnings();
         UpdateNumbers();
         UpdateEnemyBars();

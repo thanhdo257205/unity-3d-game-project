@@ -301,6 +301,14 @@ public class PhongLoiSi : MonoBehaviour
     /// <summary>Độ mở rộng góc nhìn thêm do Phá Không (độ), PhaKhong đặt.</summary>
     public float RiftFovBoost { get; set; }
 
+    /// <summary>Mức khép cánh do Phá Không đặt (0-1; 0 = không ép): khép nhanh lúc lao vào cổng, bung nhanh lúc ra khỏi cổng.</summary>
+    public float RiftFold { get; set; }
+
+    private float fastFoldUntil;
+
+    /// <summary>Tốc độ bay thường (mét/giây): vận tốc nhân vật giữ khi ra khỏi cổng Phá Không giữa trời.</summary>
+    public float CruiseSpeed => cruiseSpeed;
+
     /// <summary>Cường độ sét tối thiểu do Phá Không đặt (0 = không ép).</summary>
     public float RiftLevel { get; set; }
 
@@ -463,6 +471,7 @@ public class PhongLoiSi : MonoBehaviour
         FrozenForRift = false;
         RiftFovBoost = 0f;
         RiftLevel = 0f;
+        RiftFold = 0f;
         CurrentDrainPerSecond = 0f;
         if (was) OpenChanged?.Invoke(false);
     }
@@ -803,7 +812,8 @@ public class PhongLoiSi : MonoBehaviour
     {
         if (visual == null) return;
         wingBack = Mathf.SmoothDamp(wingBack, wingBackTarget, ref wingBackVel, poseSmoothTime);
-        wingFold = Mathf.SmoothDamp(wingFold, wingFoldTarget, ref wingFoldVel, poseSmoothTime);
+        if (RiftFold > 0.01f) fastFoldUntil = Time.time + 0.6f;   // Phá Không: khép và bung cánh rất nhanh
+        wingFold = Mathf.SmoothDamp(wingFold, Mathf.Max(wingFoldTarget, RiftFold), ref wingFoldVel, Time.time < fastFoldUntil ? 0.07f : poseSmoothTime);
         visual.SetFold(wingFold);
         visual.SetExtraOffset(wingRootShiftInFlight * Mathf.Clamp(bodyTilt / Mathf.Max(1f, cruisePitch), 0f, 1.6f));
         // Ngả về phía chân: lông cánh (rũ xuống từ xương cánh) hất ra sau theo hướng bay, xương cánh (mép đầu) chúi về phía trước cùng thân người,
