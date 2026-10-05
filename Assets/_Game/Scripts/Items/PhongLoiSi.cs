@@ -119,7 +119,7 @@ public class PhongLoiSi : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float bankPerTurnRate = 0.12f;
 
     [Header("Độ ngả của cánh theo tốc độ")]
-    [Tooltip("Cánh ngả ra sau bao nhiêu độ (so với phương thẳng đứng) khi lơ lửng. 0 = dựng đứng.")]
+    [Tooltip("Cánh ngả về phía chân bao nhiêu độ (so với phương thẳng đứng của thế giới; lông cánh xuôi ra sau theo hướng bay) khi lơ lửng. 0 = dựng đứng.")]
     [SerializeField, Range(0f, 90f)] private float wingBackHover = 0f;
 
     [Tooltip("Cánh ngả ra sau bao nhiêu độ khi bay thường (đạt ở tốc độ bay thường).")]
@@ -806,7 +806,9 @@ public class PhongLoiSi : MonoBehaviour
         wingFold = Mathf.SmoothDamp(wingFold, wingFoldTarget, ref wingFoldVel, poseSmoothTime);
         visual.SetFold(wingFold);
         visual.SetExtraOffset(wingRootShiftInFlight * Mathf.Clamp(bodyTilt / Mathf.Max(1f, cruisePitch), 0f, 1.6f));
-        float tilt = -wingBack;   // ngả ra sau = xoay trục lên của cánh về phía sau (âm theo trục phải)
+        // Ngả về phía chân: lông cánh (rũ xuống từ xương cánh) hất ra sau theo hướng bay, xương cánh (mép đầu) chúi về phía trước cùng thân người,
+        // nên khi thân nằm ngang lông cánh xuôi về phía chân như chim lao. (Dấu trừ trước đây xoay ngược: lông chĩa về phía đầu, cánh nổi tách khỏi lưng.)
+        float tilt = wingBack;
         Quaternion q = transform.rotation * Quaternion.AngleAxis(appliedBank, Vector3.forward) * Quaternion.AngleAxis(tilt, Vector3.right);
         visual.SetOrientation(q, bodyRotation);   // độ lệch gốc cánh theo trục thân để gốc cánh luôn sát mặt lưng
     }

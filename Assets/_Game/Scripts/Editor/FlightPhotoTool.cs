@@ -81,6 +81,29 @@ public static class FlightPhotoTool
         Debug.Log("[Ảnh bay] Bắt đầu (sấm sét).");
     }
 
+    /// <summary>Chụp nhanh một trạng thái để chỉnh hiệu ứng: "dung" (sau + trước), "thuong" (sau), "tangtoc" (sau + ngang). Cánh được mở sẵn nếu chưa mở.</summary>
+    public static void RunQuick(string tag, string state)
+    {
+        if (!Application.isPlaying) { Debug.LogError("[Ảnh bay] Cần đang Play."); return; }
+        prefix = tag;
+        Init();
+        Hotbar hb = pc.GetComponent<Hotbar>();
+        if (!pl.IsOpen) { hb.Select(3); hb.TryUseSelected(); }
+        steps = new List<Step>();
+        steps.Add(new Step { name = "mo", duration = pl.IsOpen ? 0.3f : 1.2f });
+        if (state == "dung") steps.Add(new Step { name = "dung", duration = 4.5f, flash = true, views = new[] { "sau", "truoc" }, begin = () => ResetFrames() });
+        else
+        {
+            steps.Add(new Step { name = "len", duration = pl.IsFlying ? 0.2f : 1.6f, begin = () => pl.TestSetInput(Vector2.zero, 1f, false) });
+            bool boost = state == "tangtoc";
+            steps.Add(new Step { name = state, duration = 4.5f, flash = true, views = boost ? new[] { "sau", "ngang" } : new[] { "sau" }, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, boost); ResetFrames(); } });
+        }
+        steps.Add(new Step { name = "xong", duration = 0.1f, begin = () => pl.TestClearInput() });
+        index = -1;
+        stepStart = 0f;
+        EditorApplication.update += Tick;
+    }
+
     private static float frameSum; private static int frameCount; private static bool flashShot;
     private static void ResetFrames() { frameSum = 0f; frameCount = 0; flashShot = false; }
 
@@ -286,7 +309,8 @@ public static class FlightPhotoTool
         float wingBackDeg = Vector3.SignedAngle(Vector3.up, tr.up, pc.transform.right);
         return "vaiLech=" + Vector3.Angle(shoulders, tr.right).ToString("F0") + " hongLech=" + Vector3.Angle(hipLine, tr.right).ToString("F0")
             + " chanCachNhau=" + Vector3.Distance(lf.position, rf.position).ToString("F2") + " thanNghieng=" + tilt.ToString("F0")
-            + RobeWidth() + " canhNgaSau=" + (-wingBackDeg).ToString("F0") + " canhRight-lech=" + Vector3.Angle(pc.transform.right, tr.right).ToString("F0");
+            + " canhLechTrucThan=" + Vector3.Angle(tr.up, up).ToString("F0") + " gocCanhCachNguc=" + Vector3.Distance(tr.position, (anim.GetBoneTransform(HumanBodyBones.UpperChest) ?? anim.GetBoneTransform(HumanBodyBones.Chest)).position).ToString("F2") + "m"
+            + RobeWidth() + " canhNgaVePhiaChan=" + wingBackDeg.ToString("F0") + " canhRight-lech=" + Vector3.Angle(pc.transform.right, tr.right).ToString("F0");
     }
 }
 #endif

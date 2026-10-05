@@ -15,14 +15,14 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 1
-  m_FogColor: {r: 0.82, g: 0.55, b: 0.45, a: 1}
+  m_FogColor: {r: 0.46, g: 0.42, b: 0.42, a: 1}
   m_FogMode: 2
   m_FogDensity: 0.006
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
-  m_AmbientSkyColor: {r: 0.45, g: 0.4, b: 0.52, a: 1}
-  m_AmbientEquatorColor: {r: 0.62, g: 0.45, b: 0.4, a: 1}
-  m_AmbientGroundColor: {r: 0.22, g: 0.18, b: 0.18, a: 1}
+  m_AmbientSkyColor: {r: 0.24, g: 0.29, b: 0.4, a: 1}
+  m_AmbientEquatorColor: {r: 0.34, g: 0.31, b: 0.31, a: 1}
+  m_AmbientGroundColor: {r: 0.12, g: 0.1, b: 0.1, a: 1}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
@@ -3129,7 +3129,7 @@ Light:
   serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 0.74, b: 0.45, a: 1}
-  m_Intensity: 2.4
+  m_Intensity: 1.5
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -7057,7 +7057,7 @@ Light:
   serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 0.6, b: 0.33, a: 1}
-  m_Intensity: 2.2
+  m_Intensity: 1.5
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -8748,7 +8748,7 @@ Light:
   serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 0.88, b: 0.78, a: 1}
-  m_Intensity: 0.75
+  m_Intensity: 0.55
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208

@@ -10,9 +10,9 @@ using UnityEngine.VFX;
 /// Dựng sấm sét cho Phong Lôi Sí (xem WingLightning):
 /// - "Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Dựng bản thử trong TestVFX": đặt một cánh (instance của prefab) vào scene TestVFX để xem trước.
 /// - "Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Gắn vào prefab PhongLoiSi": dựng thẳng vào Assets/_Game/Prefabs/PhongLoiSi.prefab.
-/// Việc dựng: (1) vẽ các ảnh tia sét/quầng (nếu chưa có) và các vật liệu cộng sáng; (2) tạo 8 điểm sét (Transform rỗng "Set_Diem_*") làm con của các
+/// Việc dựng: (1) vẽ lại các ảnh tia sét / dải lửa (ảnh do code sinh) và tạo các vật liệu; (2) tạo 8 điểm sét (Transform rỗng "Set_Diem_*") làm con của các
 /// xương cánh Canh_T1..3 / Canh_P1..3, rải từ gốc tới đầu cánh theo đường xương; (3) thêm WingLightning vào đối tượng con "HieuUngSet" và gán vật liệu.
-/// Các tia, vệt, quầng, đèn do WingLightning tự tạo lúc chạy. Mỗi lần dựng sẽ xóa bản "HieuUngSet" cũ rồi dựng lại. Không đụng tới mô hình.
+/// Các tia, vệt, quầng, mảng tối, đèn do WingLightning tự tạo lúc chạy. Mỗi lần dựng sẽ xóa bản "HieuUngSet" cũ rồi dựng lại. Không đụng tới mô hình.
 /// </summary>
 public static class WingLightningBuilder
 {
@@ -23,6 +23,21 @@ public static class WingLightningBuilder
     private const string MatBase = "Assets/_Game/Materials/VFX_VetKiem.mat";
     private const string TexDir = "Assets/_Game/VFX/Textures/";
     private const string MatDir = "Assets/_Game/Materials/";
+
+    /// <summary>Độ sáng lớp ngoài so với lõi trong ảnh tia (lõi = 1). Lõi HDR ~9 thì lớp ngoài ~1.1: còn đủ màu vàng/xanh, không bị cắt thành trắng.</summary>
+    public static float HaloLevel = 0.05f;
+
+    /// <summary>Độ chụm của lớp ngoài: số mũ càng cao càng chỉ sáng sát lõi.</summary>
+    public static float HaloPower = 2.2f;
+
+    /// <summary>Vẽ lại hai ảnh tia và ảnh dải lửa (không đụng prefab). Dùng khi chỉnh độ sáng lớp ngoài.</summary>
+    public static void RegenerateTextures()
+    {
+        MakeBoltTexture("Set_Vang", new Color(1f, 0.72f, 0.2f));
+        MakeBoltTexture("Set_Xanh", new Color(0.15f, 0.85f, 1f));
+        MakeFireTexture();
+        AssetDatabase.SaveAssets();
+    }
 
     [MenuItem("Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Dựng bản thử trong TestVFX")]
     public static void BuildBench()
@@ -57,98 +72,108 @@ public static class WingLightningBuilder
 
     // ================= Ảnh và vật liệu =================
 
-    private static Texture2D MakeBoltTexture(string name, Color inner, Color outer)
+    /// <summary>Smoothstep kiểu shader (0 dưới e0, 1 trên e1). Lưu ý: Mathf.SmoothStep của Unity KHÔNG phải hàm này (nó nội suy giữa hai số).</summary>
+    private static float Smooth(float e0, float e1, float x)
+    {
+        float t = Mathf.Clamp01((x - e0) / (e1 - e0));
+        return t * t * (3f - 2f * t);
+    }
+
+    private static void SaveTexture(string path, Texture2D t, bool srgb, TextureWrapMode wrap, bool mips)
+    {
+        File.WriteAllBytes(path, t.EncodeToPNG());
+        Object.DestroyImmediate(t);
+        AssetDatabase.ImportAsset(path);
+        TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
+        imp.sRGBTexture = srgb;                                              // tắt sRGB để số trong ảnh là số thật nhân vào màu
+        imp.textureCompression = TextureImporterCompression.Uncompressed;    // không nén: nén làm mép còn giá trị lớn hơn 0
+        imp.mipmapEnabled = mips;
+        imp.wrapMode = wrap;
+        imp.alphaIsTransparency = false;
+        imp.SaveAndReimport();
+    }
+
+    /// <summary>
+    /// Mặt cắt ngang tia (trục v, giữa dải ở v = 0.5): LÕI gần trắng rộng 1/4 bề ngang dải, nét, viền lõi gắt (chuyển trong 0.20-0.28 của nửa bề ngang);
+    /// bao quanh là LỚP NGOÀI màu vàng kim / xanh lơ, sáng bằng ~0.22 lõi, giảm dần về ĐÚNG 0 trước mép ảnh. Cộng sáng: đen = trong suốt, alpha luôn 1.
+    /// Tỉ lệ lõi / bề ngang phải khớp WingLightning.CoreFraction. Luôn vẽ lại (ảnh do code sinh).
+    /// </summary>
+    private static Texture2D MakeBoltTexture(string name, Color halo)
     {
         string path = TexDir + name + ".png";
-        if (!File.Exists(path))
+        const int h = 128;
+        Texture2D t = new Texture2D(4, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
         {
-            // Mặt cắt ngang tia (trục v): giữa gần trắng -> màu -> màu cam/xanh đậm -> đen ở mép (cộng sáng nên đen = trong suốt)
-            const int h = 64;
-            Texture2D t = new Texture2D(4, h, TextureFormat.RGBA32, false);
-            for (int y = 0; y < h; y++)
-            {
-                float p = Mathf.Abs((y + 0.5f) / h * 2f - 1f);              // 0 giữa, 1 mép
-                Color c = Color.Lerp(new Color(1f, 1f, 0.9f), inner, Mathf.SmoothStep(0.03f, 0.14f, p));
-                c = Color.Lerp(c, outer, Mathf.SmoothStep(0.3f, 0.8f, p));
-                float fade = 1f - Mathf.SmoothStep(0.55f, 1f, p);   // đậm đặc tới giữa dải rồi mới mờ ra mép
-                c = new Color(c.r, c.g, c.b, fade);   // alpha = hình tia, màu giữ nguyên (trộn alpha để màu hiện rõ cả trên nền sáng)
-                for (int x = 0; x < 4; x++) t.SetPixel(x, y, c);
-            }
-            t.Apply();
-            File.WriteAllBytes(path, t.EncodeToPNG());
-            Object.DestroyImmediate(t);
-            AssetDatabase.ImportAsset(path);
-            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
-            imp.mipmapEnabled = false;
-            imp.wrapMode = TextureWrapMode.Clamp;
-            imp.alphaIsTransparency = true;
-            imp.SaveAndReimport();
+            float p = Mathf.Abs((y + 0.5f) / h * 2f - 1f);             // 0 giữa, 1 mép
+            float core = 1f - Smooth(0.20f, 0.28f, p);
+            float q = Mathf.Clamp01((p - 0.25f) / 0.75f);
+            float ring = Mathf.Pow(1f - q, HaloPower) * HaloLevel;
+            if (p > 0.97f) ring = 0f;                                  // chắc chắn đen ở mép
+            Color c = Color.Lerp(halo * ring, new Color(1f, 1f, 0.96f), core);
+            c.a = 1f;
+            for (int x = 0; x < 4; x++) t.SetPixel(x, y, c);
         }
+        t.Apply();
+        SaveTexture(path, t, false, TextureWrapMode.Clamp, false);
         return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
     }
 
-    /// <summary>Ảnh nhiễu cho dải lửa: lấy độ sáng của RidgedPerlin.png làm alpha, màu trắng (màu cam do vật liệu nhuộm), nền dày hơn để dải lửa đặc.</summary>
+    // Nhiễu giá trị tuần hoàn theo trục x (chu kỳ periodX ô) để ảnh lát được dọc theo vệt
+    private static float Hash(int x, int y, int seed)
+    {
+        unchecked
+        {
+            int h = x * 374761393 + y * 668265263 + seed * 1274126177;
+            h = (h ^ (h >> 13)) * 1274126177;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) / (float)0xFFFFFF;
+        }
+    }
+
+    private static float PeriodicNoise(float x, float y, int periodX, int seed)
+    {
+        int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+        float fx = x - x0, fy = y - y0;
+        fx = fx * fx * (3f - 2f * fx); fy = fy * fy * (3f - 2f * fy);
+        int xa = ((x0 % periodX) + periodX) % periodX, xb = (xa + 1) % periodX;
+        float a = Mathf.Lerp(Hash(xa, y0, seed), Hash(xb, y0, seed), fx);
+        float b = Mathf.Lerp(Hash(xa, y0 + 1, seed), Hash(xb, y0 + 1, seed), fx);
+        return Mathf.Lerp(a, b, fy);
+    }
+
+    /// <summary>
+    /// Ảnh dải lửa dạng SỢI: trục u (dọc theo vệt) đổi chậm, trục v (ngang vệt) đổi nhanh nên hoa văn là các sợi dài kéo dọc vệt (không phải tổ ong).
+    /// Lát được theo u. Độ đậm nhân thêm hình cắt ngang mượt về ĐÚNG 0 ở hai mép nên dải không có cạnh thẳng. Trắng + alpha; cộng sáng nên alpha = độ sáng.
+    /// </summary>
     private static Texture2D MakeFireTexture()
     {
-        string path = TexDir + "DaiLua_Nhieu.png";
-        if (!File.Exists(path))
+        string path = TexDir + "DaiLua_Soi.png";
+        const int w = 256, h = 128;
+        Texture2D t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        for (int y = 0; y < h; y++)
         {
-            Texture2D src = new Texture2D(2, 2);
-            src.LoadImage(File.ReadAllBytes(TexDir + "RidgedPerlin.png"));
-            Color[] px = src.GetPixels();
-            for (int i = 0; i < px.Length; i++)
+            float v = (y + 0.5f) / h;
+            float edge = 1f - Mathf.Abs(v * 2f - 1f);                  // 0 ở mép, 1 giữa
+            float profile = Mathf.SmoothStep(0f, 1f, Mathf.Pow(edge, 0.9f));
+            if (y == 0 || y == h - 1) profile = 0f;
+            for (int x = 0; x < w; x++)
             {
-                float g = px[i].grayscale;
-                float a = Mathf.Clamp01(0.05f + Mathf.Pow(g, 1.2f) * 1.25f);   // tương phản cao để lửa có vệt cuộn rõ
-                px[i] = new Color(1f, 1f, 1f, a);
+                float u = (x + 0.5f) / w;
+                // Ba tầng sợi: u đổi chậm (chu kỳ 4, 8, 16 ô dọc), v đổi nhanh (10, 22, 46 ô ngang)
+                float n = PeriodicNoise(u * 4f, v * 10f, 4, 1) * 0.5f + PeriodicNoise(u * 8f, v * 22f, 8, 2) * 0.32f + PeriodicNoise(u * 16f, v * 46f, 16, 3) * 0.18f;
+                float fibre = Mathf.Clamp01((n - 0.28f) / 0.5f);
+                float a = Mathf.Clamp01((0.08f + fibre * 1.4f) * profile);
+                t.SetPixel(x, y, new Color(1f, 1f, 1f, a));
             }
-            Texture2D t = new Texture2D(src.width, src.height, TextureFormat.RGBA32, false);
-            t.SetPixels(px);
-            t.Apply();
-            File.WriteAllBytes(path, t.EncodeToPNG());
-            Object.DestroyImmediate(src);
-            Object.DestroyImmediate(t);
-            AssetDatabase.ImportAsset(path);
-            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
-            imp.wrapMode = TextureWrapMode.Repeat;
-            imp.alphaIsTransparency = true;
-            imp.mipmapEnabled = true;
-            imp.SaveAndReimport();
         }
+        t.Apply();
+        SaveTexture(path, t, false, TextureWrapMode.Repeat, true);
         return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
     }
 
-    private static Texture2D MakeGlowTexture()
-    {
-        string path = TexDir + "QuangLungSet.png";
-        if (!File.Exists(path))
-        {
-            const int n = 128;
-            Texture2D t = new Texture2D(n, n, TextureFormat.RGBA32, false);
-            Color gold = new Color(1f, 0.78f, 0.3f), blue = new Color(0.12f, 0.6f, 1f);
-            for (int y = 0; y < n; y++)
-                for (int x = 0; x < n; x++)
-                {
-                    float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;
-                    float r = Mathf.Sqrt(u * u + v * v);
-                    Color c = Color.Lerp(gold, blue, Mathf.SmoothStep(0.1f, 0.75f, r));    // vàng ở tâm, xanh ở rìa
-                    float f = 1f - Mathf.SmoothStep(0f, 1f, r);
-                    f *= f;
-                    t.SetPixel(x, y, new Color(c.r * f, c.g * f, c.b * f, 1f));
-                }
-            t.Apply();
-            File.WriteAllBytes(path, t.EncodeToPNG());
-            Object.DestroyImmediate(t);
-            AssetDatabase.ImportAsset(path);
-            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
-            imp.mipmapEnabled = false;
-            imp.wrapMode = TextureWrapMode.Clamp;
-            imp.SaveAndReimport();
-        }
-        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-    }
-
-    private static Material MakeMat(string name, Texture tex, Color color, bool alphaBlend = false)
+    /// <summary>Vật liệu hạt cộng sáng (sao chép từ VFX_VetKiem). Mọi tia, dải lửa, tia lửa dùng loại này.</summary>
+    private static Material MakeMat(string name, Texture tex, Color color, bool additive = true)
     {
         string path = MatDir + name + ".mat";
         Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -162,14 +187,31 @@ public static class WingLightningBuilder
         m.SetTexture("_BaseMap", tex);
         m.SetColor("_BaseColor", color);
         if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
-        if (alphaBlend)
-        {
-            // Trộn alpha thường (không cộng sáng) để màu vàng/xanh hiện rõ cả trên nền trời sáng; độ chói HDR vẫn cho Bloom bắt
-            m.SetFloat("_Blend", 0f);
-            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            m.SetFloat("_ZWrite", 0f);
-        }
+        m.SetFloat("_Blend", additive ? 2f : 0f);
+        m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetFloat("_DstBlend", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.SetFloat("_ZWrite", 0f);
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    /// <summary>Vật liệu quầng tròn (shader PhamKiemLuc/QuangTron): additive = cộng sáng (quầng sáng), ngược lại trộn alpha (mảng tối).</summary>
+    private static Material MakeRoundMat(string name, bool additive, Color inner, Color outer, float alpha, float power, int queue)
+    {
+        string path = MatDir + name + ".mat";
+        Shader sh = Shader.Find("PhamKiemLuc/QuangTron");
+        if (sh == null) { Debug.LogError("[Sấm sét] Không thấy shader PhamKiemLuc/QuangTron."); return null; }
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) { m = new Material(sh) { name = name }; AssetDatabase.CreateAsset(m, path); }
+        m.shader = sh;
+        m.SetColor("_ColorInner", inner);
+        m.SetColor("_ColorOuter", outer);
+        m.SetFloat("_Alpha", alpha);
+        m.SetFloat("_Power", power);
+        m.SetFloat("_Additive", additive ? 1f : 0f);
+        m.SetFloat("_SrcBlend", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        m.SetFloat("_DstBlend", additive ? (float)UnityEngine.Rendering.BlendMode.One : (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        m.renderQueue = queue;
         EditorUtility.SetDirty(m);
         return m;
     }
@@ -178,17 +220,18 @@ public static class WingLightningBuilder
 
     public static void Build(GameObject root)
     {
-        Texture2D vang = MakeBoltTexture("Set_Vang", new Color(1f, 0.55f, 0f), new Color(1f, 0.22f, 0f));
-        Texture2D xanh = MakeBoltTexture("Set_Xanh", new Color(0f, 0.65f, 1f), new Color(0f, 0.22f, 1f));
-        Texture2D glow = MakeGlowTexture();
-        Texture2D ridged = MakeFireTexture();
+        Texture2D vang = MakeBoltTexture("Set_Vang", new Color(1f, 0.72f, 0.2f));
+        Texture2D xanh = MakeBoltTexture("Set_Xanh", new Color(0.15f, 0.85f, 1f));
+        Texture2D soi = MakeFireTexture();
         Texture2D dot = AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "QuangTron.png");
-        Material mGold = MakeMat("VFX_SetVang", vang, Color.white * 1.1f, true);
-        Material mBlue = MakeMat("VFX_SetXanh", xanh, Color.white * 1.1f, true);
-        Material mGlow = MakeMat("VFX_QuangLungSet", glow, new Color(1.6f, 1.6f, 1.6f, 0.1f));
-        // màu cam HDR; ảnh nhiễu trắng + alpha
-        Material mFire = MakeMat("VFX_DaiLua", ridged, new Color(2.4f, 1.0f, 0.12f, 1.2f), true);
-        Material mRib = MakeMat("VFX_DaiXanh", xanh, new Color(1.6f, 1.6f, 1.6f, 1f), true);
+        Material mGold = MakeMat("VFX_SetVang", vang, Color.white);
+        Material mBlue = MakeMat("VFX_SetXanh", xanh, Color.white);
+        // quầng sáng sau lưng: tâm vàng, rìa xanh, cộng sáng; mảng tối sau cánh: xanh đen, trộn alpha, vẽ trước (dưới) mọi tia
+        Material mGlow = MakeRoundMat("VFX_QuangLungSet", true, new Color(1.6f, 1.25f, 0.5f), new Color(0.2f, 0.9f, 1.8f), 0.3f, 1.6f, 2995);
+        Material mDark = MakeRoundMat("VFX_MangToiSet", false, new Color(0.02f, 0.05f, 0.12f), new Color(0.02f, 0.05f, 0.12f), 0.3f, 0.6f, 2990);
+        // dải lửa: sợi dài, cam HDR; dải xanh mảnh dùng ảnh tia xanh
+        Material mFire = MakeMat("VFX_DaiLua", soi, new Color(1.5f, 0.6f, 0.08f, 1f), false);
+        Material mRib = MakeMat("VFX_DaiXanh", xanh, new Color(0.6f, 1.5f, 2.1f, 1f));
         Material mSpark = MakeMat("VFX_TiaLuaCanh", dot, new Color(1f, 1f, 1f, 1f));
         AssetDatabase.SaveAssets();
 
@@ -218,6 +261,7 @@ public static class WingLightningBuilder
         so.FindProperty("matGold").objectReferenceValue = mGold;
         so.FindProperty("matBlue").objectReferenceValue = mBlue;
         so.FindProperty("matGlow").objectReferenceValue = mGlow;
+        so.FindProperty("matDark").objectReferenceValue = mDark;
         so.FindProperty("matFire").objectReferenceValue = mFire;
         so.FindProperty("matRibbon").objectReferenceValue = mRib;
         so.FindProperty("matSpark").objectReferenceValue = mSpark;

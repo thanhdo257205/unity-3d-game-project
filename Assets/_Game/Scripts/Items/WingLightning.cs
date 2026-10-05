@@ -5,14 +5,15 @@ using UnityEngine.VFX;
 
 /// <summary>
 /// Sấm sét của Phong Lôi Sí theo phong cách phim (nằm trong prefab PhongLoiSi, đối tượng con "HieuUngSet"; dựng bằng menu
-/// Phàm Kiếm Lục → Sấm sét Phong Lôi Sí → Gắn vào prefab PhongLoiSi). Hai hệ màu: LÔI vàng kim (lõi gần trắng, quầng cam vàng) và PHONG xanh lơ ngọc
-/// (lõi gần trắng, quầng xanh). Toàn bộ tia vẽ bằng LineRenderer sinh bằng code (chia đoạn, lệch ngẫu nhiên, đẻ nhánh), mọi tia đều bắt đầu từ một điểm
-/// trên cánh nên không tia nào rời cánh bay lạc.
-/// - Tia dọc cánh: mỗi cánh 2 tia (vàng và xanh, đi lệch nhau), dày, đổi hình liên tục, luôn hiện (mờ hơn khi cường độ thấp).
+/// Phàm Kiếm Lục → Sấm sét Phong Lôi Sí → Gắn vào prefab PhongLoiSi). Hai hệ màu: LÔI vàng kim và PHONG xanh lơ ngọc. Mỗi tia là MỘT LineRenderer cộng sáng
+/// với ảnh mặt cắt có LÕI gần trắng mảnh và nét (rộng 1/4 bề ngang dải, độ sáng HDR rất cao) bao bởi LỚP NGOÀI màu rộng gấp 4 lần, sáng thấp hơn; phần tỏa sáng
+/// còn lại do Bloom. Tia vẽ bằng code (chia đoạn ngắn, lệch ngẫu nhiên thành đường GÃY, đẻ nhánh), mọi tia đều bắt đầu từ một điểm trên cánh nên không tia nào bay lạc.
+/// - Tia dọc cánh: mỗi cánh 2 tia (vàng và xanh, đi lệch nhau), đổi hình mỗi 0.03-0.05s, luôn hiện (mờ hơn khi cường độ thấp).
 /// - Tia tỏa: từ các điểm trên cánh bắn ra xa thân người 0.5-1.5m, sống 0.1-0.2s, mỗi tia có 1-3 nhánh con; luôn có vài tia nhỏ, đợt bùng thì dày đặc.
-/// - Đợt bùng: cứ 0.5-1.5s một đợt 0.2-0.3s: tia dày và sáng hơn, nhiều tia tỏa, viền lông cánh, quầng sáng sau lưng và hai đèn (vàng/xanh) sáng lên.
-/// - Quầng sáng sau lưng: quad cộng sáng luôn quay về camera, đặt ngay sau nhân vật nhìn từ camera nên không che người.
-/// - Vệt ở đầu cánh khi bay: một dải vàng cam cuộn như lửa + một dải xanh mảnh thẳng sát bên; tăng tốc dài hơn, sáng hơn, kèm tia lửa vàng/xanh bay ngược ra sau.
+/// - Đợt bùng: cứ 0.5-1.5s một đợt 0.2-0.3s: tia sáng hơn, nhiều tia tỏa, viền lông cánh, quầng sáng sau lưng, mảng tối sau cánh và hai đèn (vàng/xanh) hiện rõ.
+/// - Quầng sáng sau lưng và mảng tối mềm sau mỗi cánh: tấm tròn quay về camera, tròn mờ dần về đúng 0 trước mép tấm (shader PhamKiemLuc/QuangTron), đặt
+///   sau nhân vật nhìn từ camera nên không che người. Mảng tối làm nền cho tia cộng sáng nổi lên trên nền trời sáng.
+/// - Vệt ở đầu cánh khi bay: dải lửa vàng cam thuôn nhọn, hoa văn là sợi dài trôi ra sau + một dải xanh mảnh sát bên; tăng tốc dài hơn, sáng hơn, kèm tia lửa vàng/xanh bay ngược ra sau.
 /// - Bụi đáp đất (BuiDapDat.vfx) khi hạ cánh.
 /// Cường độ gom vào biến "cuongDoSet" (0-1) do PhongLoiSi đặt theo trạng thái (xếp 0, đứng đất 0.35, bay thường 0.65, tăng tốc 1).
 /// </summary>
@@ -29,25 +30,35 @@ public class WingLightning : MonoBehaviour
     [Tooltip("Thời gian chuyển mượt khi cường độ đổi (giây).")]
     [SerializeField, Min(0.01f)] private float levelSmoothTime = 0.25f;
 
-    [Header("Độ sáng (HDR, để Bloom bắt rõ)")]
-    [Tooltip("Độ sáng tia sét lúc thường (nhân với màu trong ảnh tia).")]
-    [SerializeField, Min(0.1f)] private float boltHdr = 1.0f;
+    [Header("Độ sáng lõi (HDR, để Bloom bắt rõ)")]
+    [Tooltip("Độ sáng LÕI tia lúc thường (nhân vào ảnh tia; lớp ngoài tự sáng bằng khoảng 0.22 lần số này). Thử 8-12.")]
+    [SerializeField, Min(0.1f)] private float coreHdr = 8f;
 
-    [Tooltip("Độ sáng tia sét lúc bùng.")]
-    [SerializeField, Min(0.1f)] private float boltHdrBurst = 1.5f;
+    [Tooltip("Độ sáng LÕI tia lúc bùng.")]
+    [SerializeField, Min(0.1f)] private float coreHdrBurst = 10f;
 
-    [Header("Hai tia chính dọc cánh")]
-    [Tooltip("Độ dày hai tia chính dọc cánh (mét) ở cường độ 1. Ảnh tia có lõi gần trắng ở giữa nên lõi mảnh hơn nhiều.")]
-    [SerializeField, Min(0.01f)] private float mainWidth = 0.14f;
+    [Header("Độ dày tia")]
+    [Tooltip("Bề ngang của LÕI hai tia chính dọc cánh (mét), ở cường độ 1. Lớp ngoài rộng gấp 4 lần số này (tự tính). Nên 0.015-0.03.")]
+    [SerializeField, Range(0.005f, 0.06f)] private float mainCoreWidth = 0.028f;
 
     [Tooltip("Tia xanh chạy lệch vào phía lông cánh bấy nhiêu mét so với tia vàng chạy theo xương cánh.")]
     [SerializeField, Min(0f)] private float mainSideOffset = 0.17f;
 
-    [Tooltip("Độ lệch ngẫu nhiên của tia chính (mét): càng lớn càng ngoằn ngoèo.")]
-    [SerializeField, Min(0f)] private float mainJitter = 0.03f;
+    [Header("Độ gãy của tia")]
+    [Tooltip("Độ lệch ngẫu nhiên của mỗi đỉnh tia chính (mét): càng lớn càng gãy khúc. Tia chính chia nhiều đoạn ngắn nên đường gãy góc, không uốn mềm.")]
+    [SerializeField, Min(0f)] private float mainJitter = 0.05f;
 
-    [Tooltip("Mỗi bao nhiêu giây tia chính đổi hình một lần (giây).")]
-    [SerializeField, Min(0.01f)] private float mainRefresh = 0.045f;
+    [Tooltip("Mỗi bao nhiêu giây tia chính đổi hình một lần (giây): nhỏ nhất - lớn nhất.")]
+    [SerializeField] private Vector2 mainRefresh = new Vector2(0.03f, 0.05f);
+
+    [Tooltip("Mỗi bao nhiêu giây tia tỏa đổi hình một lần (giây): nhỏ nhất - lớn nhất.")]
+    [SerializeField] private Vector2 arcRefresh = new Vector2(0.03f, 0.05f);
+
+    [Tooltip("Số đoạn của thân mỗi tia tỏa (nhiều đoạn ngắn thì gãy góc nhiều hơn).")]
+    [SerializeField, Range(4, 14)] private int arcSegments = 9;
+
+    [Tooltip("Độ lệch ngang của tia tỏa so với chiều dài tia (0.14 = lệch tối đa 14% chiều dài).")]
+    [SerializeField, Range(0.02f, 0.4f)] private float arcZigzag = 0.15f;
 
     [Header("Tia tỏa ra ngoài (có nhánh)")]
     [Tooltip("Số tia tỏa mỗi giây cho mỗi cánh khi bình thường: (cường độ thấp nhất, cường độ 1).")]
@@ -68,8 +79,8 @@ public class WingLightning : MonoBehaviour
     [Tooltip("Số nhánh con của mỗi tia tỏa (nhỏ nhất - lớn nhất).")]
     [SerializeField] private Vector2Int arcBranches = new Vector2Int(1, 3);
 
-    [Tooltip("Độ dày tia tỏa (mét).")]
-    [SerializeField, Min(0.01f)] private float arcWidth = 0.07f;
+    [Tooltip("Bề ngang của LÕI tia tỏa (mét); lớp ngoài rộng gấp 4 lần. Nên 0.015-0.03.")]
+    [SerializeField, Range(0.005f, 0.06f)] private float arcCoreWidth = 0.02f;
 
     [Header("Đợt bùng")]
     [Tooltip("Khoảng cách giữa hai đợt bùng (giây): nhỏ nhất - lớn nhất.")]
@@ -79,7 +90,7 @@ public class WingLightning : MonoBehaviour
     [SerializeField] private Vector2 burstDuration = new Vector2(0.2f, 0.3f);
 
     [Header("Quầng sáng sau lưng")]
-    [Tooltip("Kích thước quầng sáng (mét).")]
+    [Tooltip("Đường kính quầng sáng (mét). Quầng tròn, mờ dần về đúng 0 ở rìa.")]
     [SerializeField, Min(0.5f)] private float glowSize = 3.6f;
 
     [Tooltip("Độ đậm quầng lúc thường (rất nhạt) và lúc bùng.")]
@@ -87,6 +98,16 @@ public class WingLightning : MonoBehaviour
 
     [Tooltip("Quầng đặt xa hơn nhân vật bấy nhiêu mét theo hướng ra xa camera, để nằm sau người, không che.")]
     [SerializeField, Min(0.3f)] private float glowDistance = 1.2f;
+
+    [Header("Mảng tối mềm sau cánh (cho tia nổi trên nền sáng)")]
+    [Tooltip("Đường kính mảng tối sau mỗi cánh (mét). Tròn, mờ dần về đúng 0 ở rìa.")]
+    [SerializeField, Min(0.5f)] private float darkSize = 3.0f;
+
+    [Tooltip("Độ đậm mảng tối: lúc thường (gần như không thấy) và lúc bùng (0.25-0.4).")]
+    [SerializeField] private Vector2 darkAlpha = new Vector2(0.06f, 0.4f);
+
+    [Tooltip("Mảng tối đặt xa hơn cánh bấy nhiêu mét theo hướng ra xa camera, để nằm sau cánh và sau người.")]
+    [SerializeField, Min(0.1f)] private float darkBehind = 0.55f;
 
     [Header("Hai đèn (vàng - xanh)")]
     [Tooltip("Độ sáng mỗi đèn lúc bùng ở cường độ 1 (yếu). Đèn chỉ chiếu mặt đất/môi trường, không chiếu nhân vật nên không nhuộm màu người.")]
@@ -102,17 +123,20 @@ public class WingLightning : MonoBehaviour
     [Tooltip("Chiều dài vệt khi tăng tốc (mét), sáng.")]
     [SerializeField, Min(0.1f)] private float trailLengthBoost = 4.5f;
 
-    [Tooltip("Bề rộng đầu dải lửa (mét), thu về 0 ở đuôi.")]
+    [Tooltip("Bề rộng dải lửa ở đầu cánh (mét), thuôn nhọn dần về 0 ở đuôi.")]
     [SerializeField, Min(0.01f)] private float trailWidth = 0.2f;
 
-    [Tooltip("Bề rộng đầu dải xanh (mét).")]
-    [SerializeField, Min(0.01f)] private float ribbonWidth = 0.09f;
+    [Tooltip("Bề rộng dải xanh ở đầu cánh (mét), cũng thuôn về 0.")]
+    [SerializeField, Min(0.01f)] private float ribbonWidth = 0.08f;
 
-    [Tooltip("Dải xanh nằm lệch khỏi dải lửa bấy nhiêu mét.")]
-    [SerializeField, Min(0f)] private float ribbonGap = 0.22f;
+    [Tooltip("Dải xanh nằm lệch khỏi dải lửa bấy nhiêu mét (nhỏ = sát bên).")]
+    [SerializeField, Min(0f)] private float ribbonGap = 0.15f;
 
-    [Tooltip("Tốc độ trôi của hoa văn nhiễu dọc theo dải lửa.")]
-    [SerializeField] private float trailScroll = 2.2f;
+    [Tooltip("Tốc độ trôi của các sợi trong dải lửa về phía sau (đơn vị ảnh mỗi giây; đổi dấu nếu thấy trôi ngược).")]
+    [SerializeField] private float trailScroll = 1.8f;
+
+    [Tooltip("Số lần lặp ảnh sợi trên mỗi mét chiều dài vệt (nhỏ = sợi dài hơn).")]
+    [SerializeField, Min(0.1f)] private float trailTiling = 0.45f;
 
     [Header("Tia lửa vàng/xanh")]
     [Tooltip("Số tia lửa mỗi giây ở mỗi màu mỗi đầu cánh: (bay thường, tăng tốc).")]
@@ -134,13 +158,17 @@ public class WingLightning : MonoBehaviour
     [SerializeField] private Material matGold;
     [SerializeField] private Material matBlue;
     [SerializeField] private Material matGlow;
+    [SerializeField] private Material matDark;
     [SerializeField] private Material matFire;
     [SerializeField] private Material matRibbon;
     [SerializeField] private Material matSpark;
     [SerializeField] private VisualEffect dustVfx;
 
+    /// <summary>Lõi chiếm bấy nhiêu bề ngang dải trong ảnh tia (khớp WingLightningBuilder.MakeBoltTexture): bề ngang dải = bề ngang lõi / số này = 4 lần lõi.</summary>
+    public const float CoreFraction = 0.25f;
+
     private const int PointCount = 8;
-    private const int MainSub = 4;
+    private const int MainSub = 3;     // mỗi đoạn xương chia 3 đoạn ngắn (~5cm) để đường gãy góc
     private const int MainCount = (PointCount - 1) * MainSub + 1;
 
     private class Arc
@@ -172,22 +200,23 @@ public class WingLightning : MonoBehaviour
     private Transform runtime;
     private readonly List<Arc> arcs = new List<Arc>();
     private readonly List<MainBolt> mains = new List<MainBolt>();
-    private Material mGold, mBlue, mGlow, mFire, mRibbon, mSpark;
+    private Material mGold, mBlue, mGlow, mDark, mFire, mRibbon, mSpark;
     private readonly List<Vector3> shapeMain = new List<Vector3>(8);       // bộ đệm dùng lại khi dựng hình tia (tránh rác bộ nhớ)
-    private readonly bool[] shapeHas = new bool[7];
-    private readonly Vector3[][] shapeBranch = new Vector3[7][];
+    private readonly bool[] shapeHas = new bool[16];
+    private readonly Vector3[][] shapeBranch = new Vector3[16][];
     private float lastTrailAlpha = -1f;
     private Gradient gradFire, gradBlue;
     private readonly ParticleSystem[,] sparks = new ParticleSystem[2, 2];   // [cánh, 0 vàng / 1 xanh]
     private readonly TrailRenderer[] fireTrail = new TrailRenderer[2];
     private readonly TrailRenderer[] blueTrail = new TrailRenderer[2];
     private Transform glowQuad;
-    private MeshRenderer glowRenderer;
+    private readonly Transform[] darkQuads = new Transform[2];
     private readonly Light[] lights = new Light[2];
     private Animator standaloneAnimator;
-    private MaterialPropertyBlock glowBlock, fireBlock;
+    private MaterialPropertyBlock fireBlock;
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int BaseMapStId = Shader.PropertyToID("_BaseMap_ST");
+    private static readonly int AlphaId = Shader.PropertyToID("_Alpha");
 
     private float levelTarget, levelVel;
     private float burst, burstStart = -10f, burstEnd = -10f, nextBurst;
@@ -266,9 +295,8 @@ public class WingLightning : MonoBehaviour
             if (cuongDoSet < 0.01f) cuongDoSet = 0.65f;
         }
         if (dustVfx != null) dustVfx.transform.SetParent(null, true);   // bụi đứng yên ở chỗ phát, không đi theo nhân vật
-        mGold = Clone(matGold); mBlue = Clone(matBlue); mGlow = Clone(matGlow);
+        mGold = Clone(matGold); mBlue = Clone(matBlue); mGlow = Clone(matGlow); mDark = Clone(matDark);
         mFire = Clone(matFire); mRibbon = Clone(matRibbon); mSpark = Clone(matSpark);
-        glowBlock = new MaterialPropertyBlock();
         fireBlock = new MaterialPropertyBlock();
 
         GameObject rt = new GameObject("TiaSet_ChayLuc");
@@ -276,11 +304,11 @@ public class WingLightning : MonoBehaviour
         runtime.SetParent(transform, false);
         for (int s = 0; s < 2; s++)
         {
-            mains.Add(new MainBolt { lr = MakeLine("TiaChinh_Vang_" + s, mGold, mainWidth), side = s, gold = true });
-            mains.Add(new MainBolt { lr = MakeLine("TiaChinh_Xanh_" + s, mBlue, mainWidth), side = s, gold = false });
+            mains.Add(new MainBolt { lr = MakeLine("TiaChinh_Vang_" + s, mGold, mainCoreWidth / CoreFraction, false), side = s, gold = true });
+            mains.Add(new MainBolt { lr = MakeLine("TiaChinh_Xanh_" + s, mBlue, mainCoreWidth / CoreFraction, false), side = s, gold = false });
             for (int a = 0; a < arcPoolPerWing; a++)
             {
-                Arc arc = new Arc { lr = MakeLine("TiaToa_" + s + "_" + a, a % 2 == 0 ? mGold : mBlue, arcWidth), side = s, gold = a % 2 == 0 };
+                Arc arc = new Arc { lr = MakeLine("TiaToa_" + s + "_" + a, a % 2 == 0 ? mGold : mBlue, arcCoreWidth / CoreFraction, true), side = s, gold = a % 2 == 0 };
                 arc.lr.enabled = false;
                 arcs.Add(arc);
             }
@@ -289,16 +317,10 @@ public class WingLightning : MonoBehaviour
             fireTrail[s] = MakeTrail("DaiLua_" + s, mFire, tip, trailWidth, true);
             blueTrail[s] = MakeTrail("DaiXanh_" + s, mRibbon, tip, ribbonWidth, false);
         }
-        // Quầng sáng sau lưng
-        GameObject g = new GameObject("QuangLung");
-        g.transform.SetParent(runtime, false);
-        MeshFilter mf = g.AddComponent<MeshFilter>();
-        mf.sharedMesh = QuadMesh();
-        glowRenderer = g.AddComponent<MeshRenderer>();
-        glowRenderer.sharedMaterial = mGlow;
-        glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        glowRenderer.receiveShadows = false;
-        glowQuad = g.transform;
+        // Quầng sáng sau lưng và hai mảng tối mềm sau hai cánh (tấm tròn quay về camera)
+        glowQuad = MakeRoundQuad("QuangLung", mGlow);
+        darkQuads[0] = MakeRoundQuad("MangToi_0", mDark);
+        darkQuads[1] = MakeRoundQuad("MangToi_1", mDark);
         // Hai đèn: vàng và xanh, chỉ chiếu lớp môi trường (không nhuộm màu nhân vật)
         for (int i = 0; i < 2; i++)
         {
@@ -325,7 +347,19 @@ public class WingLightning : MonoBehaviour
         return new Material(m);
     }
 
-    private LineRenderer MakeLine(string name, Material mat, float width)
+    private Transform MakeRoundQuad(string name, Material mat)
+    {
+        GameObject g = new GameObject(name);
+        g.transform.SetParent(runtime, false);
+        g.AddComponent<MeshFilter>().sharedMesh = QuadMesh();
+        MeshRenderer mr = g.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        return g.transform;
+    }
+
+    private LineRenderer MakeLine(string name, Material mat, float width, bool taper)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(runtime, false);
@@ -333,8 +367,9 @@ public class WingLightning : MonoBehaviour
         lr.useWorldSpace = true;
         lr.alignment = LineAlignment.View;
         lr.textureMode = LineTextureMode.Stretch;
-        lr.numCapVertices = 4;
-        lr.numCornerVertices = 4;     // bo tròn góc gãy để tia dày không nhọn như mảnh kính
+        lr.numCapVertices = 2;
+        lr.numCornerVertices = 1;     // góc gãy giữ gần như nhọn (tia sét), chỉ bo nhẹ cho khỏi lủng
+        if (taper) lr.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.4f));   // tia tỏa nhỏ dần về cuối
         lr.sharedMaterial = mat;
         lr.widthMultiplier = width;
         lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -385,9 +420,10 @@ public class WingLightning : MonoBehaviour
         t.alignment = LineAlignment.View;
         t.minVertexDistance = fire ? 0.06f : 0.1f;
         t.widthMultiplier = width;
-        t.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0f));
+        // Đầu vệt bo tròn (vào từ 0.3 lên 1 trong 8% đầu, không cụt vuông), rồi thuôn nhọn dần về 0 ở đuôi
+        t.widthCurve = new AnimationCurve(new Keyframe(0f, 0.3f), new Keyframe(0.08f, 1f), new Keyframe(1f, 0f));
         t.textureMode = fire ? LineTextureMode.Tile : LineTextureMode.Stretch;
-        if (fire) t.textureScale = new Vector2(0.8f, 1f);
+        if (fire) t.textureScale = new Vector2(trailTiling, 1f);
         t.sharedMaterial = mat;
         t.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         t.receiveShadows = false;
@@ -428,7 +464,7 @@ public class WingLightning : MonoBehaviour
     private void OnDestroy()
     {
         if (dustVfx != null) Destroy(dustVfx.gameObject);
-        foreach (Material m in new[] { mGold, mBlue, mGlow, mFire, mRibbon, mSpark }) if (m != null) Destroy(m);
+        foreach (Material m in new[] { mGold, mBlue, mGlow, mDark, mFire, mRibbon, mSpark }) if (m != null) Destroy(m);
     }
 
     // ================= Điều khiển =================
@@ -483,7 +519,7 @@ public class WingLightning : MonoBehaviour
         boost01 = Mathf.MoveTowards(boost01, boostTarget, dt / 0.25f);
 
         // Độ sáng chung
-        float hdr = Mathf.Lerp(boltHdr, boltHdrBurst, burst) * Mathf.Lerp(0.55f, 1f, kk);
+        float hdr = Mathf.Lerp(coreHdr, coreHdrBurst, burst) * Mathf.Lerp(0.55f, 1f, kk);
         SetColor(mGold, hdr); SetColor(mBlue, hdr);
 
         // Tia tỏa: sinh theo nhịp, nhiều hơn lúc bùng
@@ -523,19 +559,28 @@ public class WingLightning : MonoBehaviour
 
     private void UpdateMainBolts(float kk)
     {
-        float width = mainWidth * Mathf.Lerp(0.55f, 1f, kk) * Mathf.Lerp(1f, 1.3f, burst);
+        float width = mainCoreWidth / CoreFraction * Mathf.Lerp(0.6f, 1f, kk) * Mathf.Lerp(1f, 1.25f, burst);
         Vector3 up = transform.up;
         foreach (MainBolt b in mains)
         {
             Transform[] pts = Pts(b.side);
             if (Time.time >= b.nextRoll)
             {
-                b.nextRoll = Time.time + mainRefresh * Random.Range(0.8f, 1.3f);
+                b.nextRoll = Time.time + Random.Range(mainRefresh.x, mainRefresh.y);
+                // Mỗi đỉnh lệch ngẫu nhiên vuông góc với đoạn xương, đổi chiều xen kẽ nên đường gãy khúc thành hình răng cưa chứ không uốn mềm
+                float sign = Random.value < 0.5f ? 1f : -1f;
                 for (int i = 0; i < MainCount; i++)
                 {
                     float t = i / (float)(MainCount - 1);
-                    float env = Mathf.Pow(Mathf.Sin(Mathf.PI * t), 0.6f);
-                    b.noise[i] = Random.onUnitSphere * (mainJitter * env * Mathf.Lerp(1f, 1.5f, burst));
+                    float env = Mathf.Pow(Mathf.Sin(Mathf.PI * t), 0.5f);
+                    Vector3 dir = pts[Mathf.Min(PointCount - 1, (i / MainSub) + 1)].position - pts[Mathf.Min(PointCount - 2, i / MainSub)].position;
+                    dir = dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector3.right;
+                    Vector3 n = Random.onUnitSphere;
+                    n -= dir * Vector3.Dot(n, dir);
+                    n = n.sqrMagnitude > 1e-6f ? n.normalized : Vector3.up;
+                    sign = -sign;
+                    float mag = mainJitter * env * Random.Range(0.4f, 1.2f) * Mathf.Lerp(1f, 1.4f, burst);
+                    b.noise[i] = (n * 0.55f + Vector3.Cross(dir, n) * 0.35f * sign) * mag * (i % 2 == 0 ? 1f : -1f);
                 }
             }
             Vector3 side = b.gold ? Vector3.zero : up * mainSideOffset;
@@ -589,7 +634,7 @@ public class WingLightning : MonoBehaviour
         a.nextShape = 0f;
         a.on = true;
         a.lr.enabled = true;
-        a.lr.widthMultiplier = arcWidth * Mathf.Lerp(0.8f, 1.3f, burst);
+        a.lr.widthMultiplier = arcCoreWidth / CoreFraction * Mathf.Lerp(0.8f, 1.3f, burst);
     }
 
     /// <summary>Dựng hình tia tỏa trong hệ trục cánh (offset từ điểm gốc): thân tia chia 6 đoạn lệch ngẫu nhiên + 1-3 nhánh con (đi ra rồi quay lại điểm đẻ nhánh).</summary>
@@ -597,14 +642,22 @@ public class WingLightning : MonoBehaviour
     {
         List<Vector3> main = shapeMain;
         main.Clear();
-        const int n = 6;
+        int n = Mathf.Min(arcSegments, shapeHas.Length - 1);
         Vector3 d = a.dirLocal;
         Vector3 perpA = Vector3.Cross(d, Random.onUnitSphere).normalized;
+        Vector3 perpB = Vector3.Cross(d, perpA);
+        float sign = Random.value < 0.5f ? 1f : -1f;
         for (int i = 0; i <= n; i++)
         {
             float t = i / (float)n;
-            Vector3 p = d * (a.length * t);
-            if (i > 0) p += (perpA * Random.Range(-1f, 1f) + Vector3.Cross(d, perpA) * Random.Range(-1f, 1f)) * (a.length * 0.11f * Mathf.Sin(Mathf.PI * Mathf.Min(1f, t * 1.05f)) + 0.01f);
+            Vector3 p = d * (a.length * (t + (i > 0 && i < n ? Random.Range(-0.3f, 0.3f) / n : 0f)));
+            if (i > 0)
+            {
+                // Đỉnh lệch xen kẽ hai bên trục tia: đường gãy khúc răng cưa; lệch lớn nhất ở giữa tia
+                sign = -sign;
+                float mag = a.length * arcZigzag * Mathf.Sin(Mathf.PI * Mathf.Min(1f, t * 1.05f)) + 0.01f;
+                p += (perpA * sign * Random.Range(0.45f, 1f) + perpB * Random.Range(-0.6f, 0.6f)) * mag;
+            }
             main.Add(p);
         }
         int branches = Random.Range(arcBranches.x, arcBranches.y + 1);
@@ -618,13 +671,13 @@ public class WingLightning : MonoBehaviour
             if (has[at]) continue;
             has[at] = true;
             Vector3 axis = Random.onUnitSphere;
-            Vector3 bd = Quaternion.AngleAxis(Random.Range(25f, 55f) * (Random.value < 0.5f ? 1f : -1f), Vector3.Cross(d, axis).normalized) * d;
+            Vector3 bd = Quaternion.AngleAxis(Random.Range(25f, 60f) * (Random.value < 0.5f ? 1f : -1f), Vector3.Cross(d, axis).normalized) * d;
             float bl = a.length * Random.Range(0.22f, 0.45f);
             Vector3[] bp = bpts[at] != null ? bpts[at] : (bpts[at] = new Vector3[3]);
             Vector3 cur = main[at];
             for (int i = 0; i < 3; i++)
             {
-                cur += bd * (bl / 3f) + Random.onUnitSphere * (bl * 0.12f);
+                cur += bd * (bl / 3f) + Random.onUnitSphere * (bl * 0.16f);
                 bp[i] = cur;
             }
         }
@@ -632,7 +685,13 @@ public class WingLightning : MonoBehaviour
         for (int i = 0; i <= n; i++)
         {
             a.local.Add(main[i]);
-            if (has[i]) { foreach (Vector3 q in bpts[i]) a.local.Add(q); a.local.Add(main[i]); }
+            if (has[i])
+            {
+                // Nhánh đi ra rồi quay về ĐÚNG đường cũ (đi lùi qua các điểm), nên chỉ thấy một nhánh liền, không thành tam giác rỗng
+                Vector3[] bp = bpts[i];
+                a.local.Add(bp[0]); a.local.Add(bp[1]); a.local.Add(bp[2]);
+                a.local.Add(bp[1]); a.local.Add(bp[0]); a.local.Add(main[i]);
+            }
         }
     }
 
@@ -643,7 +702,7 @@ public class WingLightning : MonoBehaviour
         {
             if (!a.on) continue;
             if (Time.time >= a.end) { a.on = false; a.lr.enabled = false; continue; }
-            if (Time.time >= a.nextShape) { ShapeArc(a, kk); a.nextShape = Time.time + 0.04f; }
+            if (Time.time >= a.nextShape) { ShapeArc(a, kk); a.nextShape = Time.time + Random.Range(arcRefresh.x, arcRefresh.y); }
             Vector3 origin = Pts(a.side)[a.anchor].position;
             int cnt = a.local.Count;
             if (a.world.Length < cnt) a.world = new Vector3[cnt + 8];
@@ -651,7 +710,7 @@ public class WingLightning : MonoBehaviour
             a.lr.positionCount = cnt;
             a.lr.SetPositions(a.world);
             float age = (Time.time - a.start) / Mathf.Max(0.01f, a.end - a.start);
-            float alpha = 1f - age * age;
+            float alpha = 1f - age * age * age * age;     // sáng đủ gần hết đời tia rồi tắt nhanh (không để tia mờ xám)
             a.lr.startColor = a.lr.endColor = new Color(1f, 1f, 1f, alpha);
         }
     }
@@ -669,13 +728,25 @@ public class WingLightning : MonoBehaviour
         glowQuad.position = center + dir * glowDistance;      // xa camera hơn nhân vật: nằm sau người
         glowQuad.rotation = Quaternion.LookRotation(dir);      // mặt trước (-Z) của quad hướng về camera
         glowQuad.localScale = Vector3.one * glowSize;
+        // Mảng tối: giữa mỗi cánh (điểm giữa các điểm sét), đẩy ra xa camera
+        for (int s = 0; s < 2; s++)
+        {
+            Transform[] pts = Pts(s);
+            Vector3 mid = (pts[2].position + pts[5].position) * 0.5f;
+            Vector3 d2 = mid - cam.transform.position;
+            if (d2.sqrMagnitude < 0.01f) continue;
+            d2.Normalize();
+            darkQuads[s].position = mid + d2 * darkBehind;
+            darkQuads[s].rotation = Quaternion.LookRotation(d2);
+            darkQuads[s].localScale = Vector3.one * darkSize;
+        }
     }
 
     private void UpdateGlowAndLights(float kk)
     {
-        float a = Mathf.Lerp(glowAlpha.x, glowAlpha.y, burst) * Mathf.Lerp(0.5f, 1f, kk);
-        glowBlock.SetColor(BaseColorId, new Color(1.6f, 1.6f, 1.6f, a));
-        glowRenderer.SetPropertyBlock(glowBlock);
+        // Quầng sáng và mảng tối tính độ đậm trong shader (tròn, về đúng 0 trước mép tấm)
+        mGlow.SetFloat(AlphaId, Mathf.Lerp(glowAlpha.x, glowAlpha.y, burst) * Mathf.Lerp(0.5f, 1f, kk));
+        mDark.SetFloat(AlphaId, Mathf.Lerp(darkAlpha.x, darkAlpha.y, burst) * Mathf.Lerp(0.6f, 1f, kk));
         for (int i = 0; i < 2; i++)
         {
             float lit = lightPeak * burst * kk * (1f + 0.25f * Mathf.Sin(Time.time * 60f + i));
@@ -727,10 +798,11 @@ public class WingLightning : MonoBehaviour
     private void RebuildTrailGradients(float alpha)
     {
         if (gradFire == null) { gradFire = new Gradient(); gradBlue = new Gradient(); }
-        gradFire.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.85f, 0.35f), 0f), new GradientColorKey(new Color(1f, 0.4f, 0.05f), 0.5f), new GradientColorKey(new Color(0.8f, 0.2f, 0.02f), 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(alpha * 0.5f, 0.55f), new GradientAlphaKey(0f, 1f) });
-        gradBlue.SetKeys(new[] { new GradientColorKey(new Color(0.75f, 1f, 1f), 0f), new GradientColorKey(new Color(0.2f, 0.8f, 1f), 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(0f, 1f) });
+        // Đầu vệt (sát đầu cánh) nóng và đậm nhất, mờ dần về đuôi; alpha về 0 hẳn ở đuôi nên đuôi nhọn, không có đầu cụt
+        gradFire.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.9f, 0.5f), 0f), new GradientColorKey(new Color(1f, 0.5f, 0.1f), 0.4f), new GradientColorKey(new Color(0.9f, 0.25f, 0.03f), 1f) },
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(alpha * 0.8f, 0.35f), new GradientAlphaKey(alpha * 0.3f, 0.7f), new GradientAlphaKey(0f, 1f) });
+        gradBlue.SetKeys(new[] { new GradientColorKey(new Color(0.85f, 1f, 1f), 0f), new GradientColorKey(new Color(0.2f, 0.8f, 1f), 1f) },
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(alpha * 0.6f, 0.5f), new GradientAlphaKey(0f, 1f) });
     }
 
     private void UpdateTrailTransforms()
