@@ -146,9 +146,12 @@ public static class WingLightningBuilder
     /// Ảnh dải lửa dạng SỢI: trục u (dọc theo vệt) đổi chậm, trục v (ngang vệt) đổi nhanh nên hoa văn là các sợi dài kéo dọc vệt (không phải tổ ong).
     /// Lát được theo u. Độ đậm nhân thêm hình cắt ngang mượt về ĐÚNG 0 ở hai mép nên dải không có cạnh thẳng. Trắng + alpha; cộng sáng nên alpha = độ sáng.
     /// </summary>
-    private static Texture2D MakeFireTexture()
+    private static Texture2D MakeFireTexture() { return MakeFibreTexture("DaiLua_Soi", true); }
+
+    /// <summary>Ảnh sợi dài (xem MakeFireTexture). gold = giữa dải gần trắng, ra mép vàng kim; ngược lại trắng hoàn toàn (nhuộm màu bằng vật liệu). Dùng chung cho vệt cánh và khói cổng không gian.</summary>
+    public static Texture2D MakeFibreTexture(string fileName, bool gold)
     {
-        string path = TexDir + "DaiLua_Soi.png";
+        string path = TexDir + fileName + ".png";
         const int w = 256, h = 128;
         Texture2D t = new Texture2D(w, h, TextureFormat.RGBA32, false);
         for (int y = 0; y < h; y++)
@@ -167,7 +170,7 @@ public static class WingLightningBuilder
                 fibre = fibre * fibre * (3f - 2f * fibre);
                 float a = Mathf.Clamp01(fibre * 1.15f * profile);
                 // Giữa dải gần trắng, ra mép chuyển vàng kim
-                Color c = Color.Lerp(new Color(1f, 0.72f, 0.3f), Color.white, Mathf.Pow(edge, 1.4f));
+                Color c = gold ? Color.Lerp(new Color(1f, 0.72f, 0.3f), Color.white, Mathf.Pow(edge, 1.4f)) : Color.white;
                 t.SetPixel(x, y, new Color(c.r, c.g, c.b, a));
             }
         }
@@ -177,7 +180,7 @@ public static class WingLightningBuilder
     }
 
     /// <summary>Vật liệu hạt cộng sáng (sao chép từ VFX_VetKiem). Mọi tia, dải lửa, tia lửa dùng loại này.</summary>
-    private static Material MakeMat(string name, Texture tex, Color color, bool additive = true)
+    public static Material MakeMat(string name, Texture tex, Color color, bool additive = true)
     {
         string path = MatDir + name + ".mat";
         Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -200,7 +203,7 @@ public static class WingLightningBuilder
     }
 
     /// <summary>Vật liệu quầng tròn (shader PhamKiemLuc/QuangTron): additive = cộng sáng (quầng sáng), ngược lại trộn alpha (mảng tối).</summary>
-    private static Material MakeRoundMat(string name, bool additive, Color inner, Color outer, float alpha, float power, int queue)
+    public static Material MakeRoundMat(string name, bool additive, Color inner, Color outer, float alpha, float power, int queue)
     {
         string path = MatDir + name + ".mat";
         Shader sh = Shader.Find("PhamKiemLuc/QuangTron");
