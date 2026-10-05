@@ -27,30 +27,33 @@ public static class CongKhongGianBuilder
         Shader sh = Shader.Find("PhamKiemLuc/CongKhongGian");
         if (sh == null) { Debug.LogError("[Cổng] Không thấy shader PhamKiemLuc/CongKhongGian."); return; }
 
-        string portalMatPath = MatDir + "VFX_CongKhongGian.mat";
-        Material mPortal = AssetDatabase.LoadAssetAtPath<Material>(portalMatPath);
-        if (mPortal == null) { mPortal = new Material(sh) { name = "VFX_CongKhongGian" }; AssetDatabase.CreateAsset(mPortal, portalMatPath); }
-        mPortal.shader = sh;
-        mPortal.SetTexture("_NoiseA", AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "RidgedPerlin.png"));
-        mPortal.SetTexture("_NoiseB", AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "CellularNoise01.png"));
-        mPortal.renderQueue = 2998;
-        EditorUtility.SetDirty(mPortal);
+        // Ba vật liệu cho ba lớp (_Layer 0 vòng giữa, 1 lõi, 2 vòng lửa), cùng một shader
+        Material mMid = MakeLayerMat("VFX_CongKhongGian", sh, 0f, 2998);
+        Material mCore = MakeLayerMat("VFX_CongLoi", sh, 1f, 2998);
+        Material mFireLayer = MakeLayerMat("VFX_CongLua", sh, 2f, 2998);
+        Material mWarp = MakeLayerMat("VFX_CongMeo", sh, 3f, 2997);   // luôn vẽ trước các lớp khác
 
         Material mGlow = WingLightningBuilder.MakeRoundMat("VFX_QuangCong", true, new Color(1.6f, 1.15f, 0.45f), new Color(0.2f, 0.8f, 1.8f), 0.3f, 1.4f, 2996);
         Material mSmoke = WingLightningBuilder.MakeMat("VFX_KhoiCong", smoke, new Color(1.0f, 1.5f, 2.1f, 1f));
         Material mSpark = AssetDatabase.LoadAssetAtPath<Material>(MatDir + "VFX_TiaLuaCanh.mat");
-        Material mGold = AssetDatabase.LoadAssetAtPath<Material>(MatDir + "VFX_SetVang.mat");
-        Material mBlue = AssetDatabase.LoadAssetAtPath<Material>(MatDir + "VFX_SetXanh.mat");
+        // Ảnh tia riêng của cổng: lớp ngoài sáng hơn ảnh tia cánh (0.7 so với 0.05) để thấy rõ màu vàng kim / xanh lơ dù lõi chỉ HDR 3-6
+        Texture2D tGold = WingLightningBuilder.MakeBoltTexture("Set_Vang_Cong", new Color(1f, 0.72f, 0.2f), 0.7f);
+        Texture2D tBlue = WingLightningBuilder.MakeBoltTexture("Set_Xanh_Cong", new Color(0.15f, 0.85f, 1f), 0.7f);
+        Material mGold = WingLightningBuilder.MakeMat("VFX_SetVangCong", tGold, Color.white);
+        Material mBlue = WingLightningBuilder.MakeMat("VFX_SetXanhCong", tBlue, Color.white);
         AssetDatabase.SaveAssets();
 
         GameObject root = new GameObject("CongKhongGian");
         CongKhongGian cg = root.AddComponent<CongKhongGian>();
 
-        Renderer tam = MakeQuad("Tam_Xoay", root.transform, mPortal, Vector3.zero);
+        Renderer meo = MakeQuad("Tam_Meo", root.transform, mWarp, Vector3.zero);
+        Renderer loi = MakeQuad("Tam_Loi", root.transform, mCore, new Vector3(0f, 0f, 0.4f));
+        Renderer giua = MakeQuad("Tam_Giua", root.transform, mMid, Vector3.zero);
+        Renderer lua = MakeQuad("Tam_Lua", root.transform, mFireLayer, new Vector3(0f, 0f, -0.1f));
         Renderer quang = MakeQuad("Tam_Quang", root.transform, mGlow, new Vector3(0f, 0f, 0.05f));
 
-        ParticleSystem khoi = MakeTrailSystem("Khoi_Xoay", root.transform, mSmoke, 1.5f, 0.85f, 1.2f, 0.5f, 2.6f, -0.35f, 0.14f);
-        ParticleSystem vang = MakeTrailSystem("Khoi_Vang", root.transform, mSmoke, 1.4f, 0.15f, 1.0f, 0.7f, 2.0f, 1.3f, 0.1f);
+        ParticleSystem khoi = MakeTrailSystem("Khoi_Xoay", root.transform, mSmoke, 1.5f, 0.85f, 1.6f, 0.9f, 2.6f, -0.35f, 0.14f);
+        ParticleSystem vang = MakeTrailSystem("Khoi_Vang", root.transform, mSmoke, 1.5f, 0.2f, 1.4f, 1.0f, 2.0f, 1.9f, 0.11f);
         ParticleSystem dom = MakeSparkSystem("Dom_Hut", root.transform, mSpark);
 
         GameObject lg = new GameObject("Den_Cong");
@@ -66,7 +69,10 @@ public static class CongKhongGianBuilder
         lg.AddComponent<UniversalAdditionalLightData>().renderingLayers = 1u;
 
         SerializedObject so = new SerializedObject(cg);
-        so.FindProperty("tamXoay").objectReferenceValue = tam;
+        so.FindProperty("tamMeo").objectReferenceValue = meo;
+        so.FindProperty("tamLoi").objectReferenceValue = loi;
+        so.FindProperty("tamGiua").objectReferenceValue = giua;
+        so.FindProperty("tamLua").objectReferenceValue = lua;
         so.FindProperty("tamQuang").objectReferenceValue = quang;
         so.FindProperty("khoiXoay").objectReferenceValue = khoi;
         so.FindProperty("khoiVang").objectReferenceValue = vang;
@@ -80,6 +86,21 @@ public static class CongKhongGianBuilder
         Object.DestroyImmediate(root);
         AssetDatabase.SaveAssets();
         Debug.Log("[Cổng] Đã dựng " + PrefabPath);
+    }
+
+    private static Material MakeLayerMat(string name, Shader sh, float layer, int queue)
+    {
+        string path = MatDir + name + ".mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null) { m = new Material(sh) { name = name }; AssetDatabase.CreateAsset(m, path); }
+        m.shader = sh;
+        m.SetTexture("_NoiseA", AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "RidgedPerlin.png"));
+        m.SetTexture("_NoiseB", AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "CellularNoise01.png"));
+        m.SetFloat("_Layer", layer);
+        m.SetFloat("_Distort", 0.06f);
+        m.renderQueue = queue;
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     private static Renderer MakeQuad(string name, Transform parent, Material mat, Vector3 localPos)
@@ -125,10 +146,11 @@ public static class CongKhongGianBuilder
         var vel = ps.velocityOverLifetime;
         vel.enabled = true;
         vel.space = ParticleSystemSimulationSpace.Local;
-        vel.x = 0f; vel.y = 0f; vel.z = 0f;
-        vel.orbitalX = 0f; vel.orbitalY = 0f;
-        vel.orbitalZ = orbitalZ;       // cuốn theo chiều xoáy
-        vel.radial = radial;           // âm = hút vào tâm, dương = văng ra ngoài
+        // Mọi trục phải cùng kiểu đường cong (hai hằng số). z ngẫu nhiên ±0.5 m/s: hạt trôi dọc trục cổng nên rải trong khoảng ±0.5m phía trước/sau
+        vel.x = new ParticleSystem.MinMaxCurve(0f, 0f); vel.y = new ParticleSystem.MinMaxCurve(0f, 0f); vel.z = new ParticleSystem.MinMaxCurve(-0.5f, 0.5f);
+        vel.orbitalX = new ParticleSystem.MinMaxCurve(0f, 0f); vel.orbitalY = new ParticleSystem.MinMaxCurve(0f, 0f);
+        vel.orbitalZ = new ParticleSystem.MinMaxCurve(orbitalZ * 0.85f, orbitalZ * 1.15f);       // cuốn theo chiều xoáy
+        vel.radial = new ParticleSystem.MinMaxCurve(radial * 0.8f, radial * 1.2f);                // âm = hút vào tâm, dương = văng ra ngoài
     }
 
     /// <summary>Dải khói: hạt không vẽ, chỉ vẽ VỆT của hạt (trails) bay xoắn quanh tâm. Vệt thuôn nhọn, mờ dần.</summary>

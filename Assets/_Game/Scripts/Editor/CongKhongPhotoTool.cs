@@ -73,6 +73,16 @@ public static class CongKhongPhotoTool
         EditorApplication.QueuePlayerLoopUpdate();
     }
 
+    /// <summary>Chụp ngay một ảnh (tiền tố, tên, vị trí camera, điểm nhìn) với trạng thái hiện tại.</summary>
+    public static void Snap(string tag, string name, Vector3 camPos, Vector3 look)
+    {
+        prefix = tag;
+        Find();
+        cam.transform.position = camPos;
+        cam.transform.LookAt(look);
+        Capture(name);
+    }
+
     private static void Capture(string name)
     {
         const int W = 1920, H = 1080;

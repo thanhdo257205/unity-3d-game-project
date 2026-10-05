@@ -98,7 +98,7 @@ public static class WingLightningBuilder
     /// bao quanh là LỚP NGOÀI màu vàng kim / xanh lơ, sáng bằng ~0.22 lõi, giảm dần về ĐÚNG 0 trước mép ảnh. Cộng sáng: đen = trong suốt, alpha luôn 1.
     /// Tỉ lệ lõi / bề ngang phải khớp WingLightning.CoreFraction. Luôn vẽ lại (ảnh do code sinh).
     /// </summary>
-    private static Texture2D MakeBoltTexture(string name, Color halo)
+    public static Texture2D MakeBoltTexture(string name, Color halo, float haloLevel = -1f)
     {
         string path = TexDir + name + ".png";
         const int h = 128;
@@ -108,7 +108,7 @@ public static class WingLightningBuilder
             float p = Mathf.Abs((y + 0.5f) / h * 2f - 1f);             // 0 giữa, 1 mép
             float core = 1f - Smooth(0.20f, 0.28f, p);
             float q = Mathf.Clamp01((p - 0.25f) / 0.75f);
-            float ring = Mathf.Pow(1f - q, HaloPower) * HaloLevel;
+            float ring = Mathf.Pow(1f - q, HaloPower) * (haloLevel >= 0f ? haloLevel : HaloLevel);
             if (p > 0.97f) ring = 0f;                                  // chắc chắn đen ở mép
             Color c = Color.Lerp(halo * ring, new Color(1f, 1f, 0.96f), core);
             c.a = 1f;

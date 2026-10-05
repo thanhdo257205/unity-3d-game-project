@@ -168,7 +168,7 @@ public class WingLightning : MonoBehaviour
     [SerializeField] private VisualEffect dustVfx;
 
     /// <summary>Lõi chiếm bấy nhiêu bề ngang dải trong ảnh tia (khớp WingLightningBuilder.MakeBoltTexture): bề ngang dải = bề ngang lõi / số này = 4 lần lõi.</summary>
-    public const float CoreFraction = 0.25f;
+    public const float CoreFraction = TiaSet.CoreFraction;
 
     private const int PointCount = 8;
     private const int MainSub = 3;     // mỗi đoạn xương chia 3 đoạn ngắn (~5cm) để đường gãy góc
@@ -204,9 +204,7 @@ public class WingLightning : MonoBehaviour
     private readonly List<Arc> arcs = new List<Arc>();
     private readonly List<MainBolt> mains = new List<MainBolt>();
     private Material mGold, mBlue, mGlow, mDark, mFire, mRibbon, mSpark;
-    private readonly List<Vector3> shapeMain = new List<Vector3>(8);       // bộ đệm dùng lại khi dựng hình tia (tránh rác bộ nhớ)
-    private readonly bool[] shapeHas = new bool[16];
-    private readonly Vector3[][] shapeBranch = new Vector3[16][];
+    private readonly List<Vector3> shapeBase = new List<Vector3>(16);       // đường gốc của tia tỏa (bộ đệm dùng lại)
     private float lastTrailAlpha = -1f;
     private Gradient gradFire, gradBlue;
     private readonly ParticleSystem[,] sparks = new ParticleSystem[2, 2];   // [cánh, 0 vàng / 1 xanh]
@@ -364,21 +362,8 @@ public class WingLightning : MonoBehaviour
 
     private LineRenderer MakeLine(string name, Material mat, float width, bool taper)
     {
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(runtime, false);
-        LineRenderer lr = go.AddComponent<LineRenderer>();
-        lr.useWorldSpace = true;
-        lr.alignment = LineAlignment.View;
-        lr.textureMode = LineTextureMode.Stretch;
-        lr.numCapVertices = 2;
-        lr.numCornerVertices = 1;     // góc gãy giữ gần như nhọn (tia sét), chỉ bo nhẹ cho khỏi lủng
-        if (taper) lr.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.4f));   // tia tỏa nhỏ dần về cuối
-        lr.sharedMaterial = mat;
-        lr.widthMultiplier = width;
-        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        lr.receiveShadows = false;
-        lr.positionCount = 0;
-        return lr;
+        // Bộ tạo tia dùng chung với cổng không gian (TiaSet); width ở đây là bề ngang cả dải
+        return TiaSet.MakeLine(runtime, name, mat, width * TiaSet.CoreFraction, taper);
     }
 
     private ParticleSystem MakeSparks(string name, bool gold, Transform parent)
@@ -640,62 +625,15 @@ public class WingLightning : MonoBehaviour
         a.lr.widthMultiplier = arcCoreWidth / CoreFraction * Mathf.Lerp(0.8f, 1.3f, burst);
     }
 
-    /// <summary>Dựng hình tia tỏa trong hệ trục cánh (offset từ điểm gốc): thân tia chia 6 đoạn lệch ngẫu nhiên + 1-3 nhánh con (đi ra rồi quay lại điểm đẻ nhánh).</summary>
+    /// <summary>Dựng hình tia tỏa trong hệ trục cánh (offset từ điểm gốc) bằng bộ sinh tia dùng chung TiaSet: đường gốc thẳng chia arcSegments đoạn, lệch gãy khúc + 1-3 nhánh con.</summary>
     private void ShapeArc(Arc a, float kk)
     {
-        List<Vector3> main = shapeMain;
-        main.Clear();
-        int n = Mathf.Min(arcSegments, shapeHas.Length - 1);
-        Vector3 d = a.dirLocal;
-        Vector3 perpA = Vector3.Cross(d, Random.onUnitSphere).normalized;
-        Vector3 perpB = Vector3.Cross(d, perpA);
-        float sign = Random.value < 0.5f ? 1f : -1f;
-        for (int i = 0; i <= n; i++)
-        {
-            float t = i / (float)n;
-            Vector3 p = d * (a.length * (t + (i > 0 && i < n ? Random.Range(-0.3f, 0.3f) / n : 0f)));
-            if (i > 0)
-            {
-                // Đỉnh lệch xen kẽ hai bên trục tia: đường gãy khúc răng cưa; lệch lớn nhất ở giữa tia
-                sign = -sign;
-                float mag = a.length * arcZigzag * Mathf.Sin(Mathf.PI * Mathf.Min(1f, t * 1.05f)) + 0.01f;
-                p += (perpA * sign * Random.Range(0.45f, 1f) + perpB * Random.Range(-0.6f, 0.6f)) * mag;
-            }
-            main.Add(p);
-        }
+        int n = arcSegments;
+        shapeBase.Clear();
+        for (int i = 0; i <= n; i++) shapeBase.Add(a.dirLocal * (a.length * (i / (float)n)));
         int branches = Random.Range(arcBranches.x, arcBranches.y + 1);
         if (kk < 0.5f) branches = Mathf.Min(branches, 1);
-        bool[] has = shapeHas;
-        System.Array.Clear(has, 0, has.Length);
-        Vector3[][] bpts = shapeBranch;
-        for (int b = 0; b < branches; b++)
-        {
-            int at = Random.Range(2, n);
-            if (has[at]) continue;
-            has[at] = true;
-            Vector3 axis = Random.onUnitSphere;
-            Vector3 bd = Quaternion.AngleAxis(Random.Range(25f, 60f) * (Random.value < 0.5f ? 1f : -1f), Vector3.Cross(d, axis).normalized) * d;
-            float bl = a.length * Random.Range(0.22f, 0.45f);
-            Vector3[] bp = bpts[at] != null ? bpts[at] : (bpts[at] = new Vector3[3]);
-            Vector3 cur = main[at];
-            for (int i = 0; i < 3; i++)
-            {
-                cur += bd * (bl / 3f) + Random.onUnitSphere * (bl * 0.16f);
-                bp[i] = cur;
-            }
-        }
-        a.local.Clear();
-        for (int i = 0; i <= n; i++)
-        {
-            a.local.Add(main[i]);
-            if (has[i])
-            {
-                // Nhánh đi ra rồi quay về ĐÚNG đường cũ (đi lùi qua các điểm), nên chỉ thấy một nhánh liền, không thành tam giác rỗng
-                Vector3[] bp = bpts[i];
-                a.local.Add(bp[0]); a.local.Add(bp[1]); a.local.Add(bp[2]);
-                a.local.Add(bp[1]); a.local.Add(bp[0]); a.local.Add(main[i]);
-            }
-        }
+        TiaSet.BuildPath(a.local, shapeBase, a.length * arcZigzag, Random.onUnitSphere, 0.3f, branches, a.length, false);
     }
 
     private void UpdateArcs()

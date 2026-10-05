@@ -37,16 +37,18 @@ Material:
     - _Arms: 6
     - _CoreJag: 0.3
     - _CoreRadius: 0.28
-    - _Distort: 0.12
+    - _Distort: 0.06
     - _Fire: 1
     - _Flash: 0
     - _Intensity: 1
     - _Inward: 0.35
+    - _Layer: 0
     - _Open: 1
     - _PortalFrac: 0.7273
     - _Twist: 3.4
     m_Colors:
     - _CloudBlue: {r: 0.2, g: 0.75, b: 1.9, a: 1}
+    - _CloudFill: {r: 0.05, g: 0.42, b: 0.95, a: 1}
     - _CloudWhite: {r: 1.5, g: 1.6, b: 1.7, a: 1}
     - _FireA: {r: 3.4, g: 1.3, b: 0.25, a: 1}
     - _FireB: {r: 3.6, g: 2.7, b: 0.9, a: 1}

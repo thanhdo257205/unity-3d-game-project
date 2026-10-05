@@ -3,15 +3,14 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Cổng không gian của Phá Không (chỉ phần nhìn; chưa có dịch chuyển). Prefab Assets/_Game/VFX/CongKhongGian.prefab, dựng bằng menu
-/// Phàm Kiếm Lục → Cổng không gian → "Dựng prefab CongKhongGian". Một xoáy tròn đường kính ngoài 3,2m, mặt xoáy vuông góc trục Z của đối tượng
-/// (nhân vật lao dọc trục Z qua tâm), nhìn được cả hai mặt, không khung. Ba vòng: lửa vàng kim bập bùng ở ngoài, mây trắng xanh xoáy 6 cánh ở giữa,
-/// lõi tối mép gãy góc ở tâm (xem shader PhamKiemLuc/CongKhongGian). Thành phần phụ: dải khói cuốn theo xoáy (hạt có vệt), đốm sáng bị hút vào tâm,
-/// sét vàng/xanh chạy ở vòng ngoài và bắn ngắn ra ngoài (cùng ảnh tia, độ sáng và bề rộng lõi với sét Phong Lôi Sí), quầng sáng QuangTron, một đèn điểm yếu.
+/// Cổng không gian của Phá Không. Prefab Assets/_Game/VFX/CongKhongGian.prefab, dựng bằng menu Phàm Kiếm Lục → Cổng không gian → "Dựng prefab CongKhongGian".
+/// Một xoáy tròn đường kính ngoài 3,2m, mặt xoáy vuông góc trục Z của đối tượng (nhân vật lao dọc trục Z qua tâm), nhìn được cả hai mặt, không khung.
+/// Ba lớp tách nhau dọc trục Z cho có chiều sâu (nhìn chéo thấy như cái phễu): LÕI tối lùi ra sau 0,4m, VÒNG GIỮA (mây xanh lơ trắng xoáy nhiều sợi, đặc) ở 0,
+/// VÒNG LỬA vàng kim nhô ra trước 0,1m (xem shader PhamKiemLuc/CongKhongGian). Dải khói cuốn theo xoáy (hạt có vệt) và đốm sáng bị hút vào tâm rải trong ±0,5m.
+/// Sét vàng/xanh chạy ở vòng ngoài và bắn ngắn ra ngoài, dùng chung bộ sinh tia TiaSet với sét Phong Lôi Sí. Quầng sáng QuangTron và một đèn điểm yếu.
 /// - Mo(): 0,3s: điểm sáng trắng lóe, nở thành xoáy (quay nhanh rồi chậm lại), vòng lửa ngoài bung ra cuối cùng.
 /// - Dong(): 0,25s: xoáy co về tâm quay nhanh dần, lóe một cái rồi tắt, để lại vài dải khói và tia lửa tan dần.
 /// - doMo (0-1): kéo tay trong Inspector để xem từng pha (0 = tắt, 1 = mở hết).
-/// Bề rộng tia sét tính theo mét thế giới (LineRenderer dùng tọa độ thế giới) nên không bị nhân theo scale của đối tượng cha.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -34,6 +33,12 @@ public class CongKhongGian : MonoBehaviour
     [Tooltip("Đường kính ngoài của cổng (mét), tính cả vòng lửa. Rìa ngoài tan dần nên nhìn lớn hơn một chút.")]
     [SerializeField, Min(0.5f)] private float duongKinhNgoai = 3.2f;
 
+    [Tooltip("Lõi tối lùi ra sau (theo hướng bay, trục +Z) bấy nhiêu mét so với vòng giữa.")]
+    [SerializeField, Min(0f)] private float doSauLoi = 0.4f;
+
+    [Tooltip("Vòng lửa nhô ra trước (ngược hướng bay, trục -Z) bấy nhiêu mét so với vòng giữa.")]
+    [SerializeField, Min(0f)] private float doNhoLua = 0.1f;
+
     [Tooltip("Hướng quay: 1 = ngược chiều kim đồng hồ khi nhìn từ phía trước (mặt -Z), -1 = ngược lại.")]
     [SerializeField] private float huongQuay = 1f;
 
@@ -49,7 +54,7 @@ public class CongKhongGian : MonoBehaviour
     [Tooltip("Độ sáng chung của xoáy (nhân vào màu HDR trong vật liệu). 1 = như thiết kế; cổng bị cháy trắng mất cánh xoáy thì giảm.")]
     [SerializeField, Range(0.2f, 2f)] private float doSang = 1f;
 
-    [Header("Sét ở vòng ngoài")]
+    [Header("Sét ở vòng ngoài (bộ sinh tia TiaSet dùng chung với Phong Lôi Sí)")]
     [Tooltip("Số tia sét chạy dọc vòng ngoài mỗi giây khi cổng mở hết.")]
     [SerializeField, Min(0f)] private float tiaVongMoiGiay = 4f;
 
@@ -59,11 +64,11 @@ public class CongKhongGian : MonoBehaviour
     [Tooltip("Số tia sét tối đa cùng lúc (giới hạn để nhẹ máy).")]
     [SerializeField, Range(2, 24)] private int soTiaToiDa = 10;
 
-    [Tooltip("Bề ngang LÕI tia sét (mét), cùng giá trị đã chốt cho sét Phong Lôi Sí. Lớp ngoài rộng gấp 4 lần.")]
-    [SerializeField, Range(0.005f, 0.06f)] private float beRongLoiTia = 0.02f;
+    [Tooltip("Bề ngang LÕI tia sét (mét): mảnh như sợi chỉ. Lớp ngoài rộng gấp 4 lần.")]
+    [SerializeField, Range(0.004f, 0.04f)] private float beRongLoiTia = 0.012f;
 
-    [Tooltip("Độ sáng lõi tia (HDR) lúc thường và lúc bùng, cùng giá trị đã chốt cho sét Phong Lôi Sí.")]
-    [SerializeField] private Vector2 doSangLoiTia = new Vector2(8f, 10f);
+    [Tooltip("Độ sáng lõi tia (HDR) lúc thường và lúc bùng. Lớp ngoài vàng kim / xanh lơ trong ảnh tia của cổng sáng hơn ảnh tia cánh nên vẫn thấy rõ màu ở mức sáng thấp này.")]
+    [SerializeField] private Vector2 doSangLoiTia = new Vector2(3.5f, 5.5f);
 
     [Tooltip("Thời gian sống mỗi tia (giây): nhỏ nhất - lớn nhất.")]
     [SerializeField] private Vector2 songTia = new Vector2(0.1f, 0.2f);
@@ -73,10 +78,10 @@ public class CongKhongGian : MonoBehaviour
 
     [Header("Hạt")]
     [Tooltip("Số dải khói cuốn theo xoáy mỗi giây khi mở hết.")]
-    [SerializeField, Min(0f)] private float khoiMoiGiay = 16f;
+    [SerializeField, Min(0f)] private float khoiMoiGiay = 48f;
 
-    [Tooltip("Số dải khói văng ra ngoài rìa mỗi giây khi mở hết.")]
-    [SerializeField, Min(0f)] private float khoiVangMoiGiay = 4f;
+    [Tooltip("Số dải khói văng ra ngoài vòng lửa mỗi giây khi mở hết.")]
+    [SerializeField, Min(0f)] private float khoiVangMoiGiay = 14f;
 
     [Tooltip("Số đốm sáng bị hút vào tâm mỗi giây khi mở hết.")]
     [SerializeField, Min(0f)] private float domMoiGiay = 45f;
@@ -92,7 +97,10 @@ public class CongKhongGian : MonoBehaviour
     [SerializeField, Min(0f)] private float denDoSang = 1.1f;
 
     [Header("Tham chiếu (do menu dựng prefab gán, không cần chỉnh)")]
-    [SerializeField] private Renderer tamXoay;
+    [SerializeField] private Renderer tamMeo;
+    [SerializeField] private Renderer tamLoi;
+    [SerializeField] private Renderer tamGiua;
+    [SerializeField] private Renderer tamLua;
     [SerializeField] private Renderer tamQuang;
     [SerializeField] private ParticleSystem khoiXoay;
     [SerializeField] private ParticleSystem khoiVang;
@@ -101,25 +109,24 @@ public class CongKhongGian : MonoBehaviour
     [SerializeField] private Material matSetVang;
     [SerializeField] private Material matSetXanh;
 
-    private const float CoreFraction = 0.25f;   // khớp WingLightning.CoreFraction (ảnh tia: lõi = 1/4 bề ngang)
-
     private class Arc
     {
         public LineRenderer lr;
         public bool on, ring, gold;
         public float start, end, nextShape, angle, span, length, radius;
-        public int sign;
         public readonly List<Vector3> pts = new List<Vector3>(48);
     }
 
     private readonly List<Arc> arcs = new List<Arc>();
+    private readonly List<Vector3> baseBuf = new List<Vector3>(16);
+    private Vector3[] posArr = new Vector3[64];
     private Transform runtime;
     private Material mGold, mBlue;
     private MaterialPropertyBlock block, glowBlock;
     private int anim;            // 1 = đang mở, -1 = đang đóng, 0 = đứng yên
     private float angle;
     private float arcAccumRing, arcAccumRadial;
-    private bool leftoverEmitted;
+    private bool leftoverEmitted, built;
 
     private static readonly int OpenId = Shader.PropertyToID("_Open");
     private static readonly int FireId = Shader.PropertyToID("_Fire");
@@ -136,6 +143,9 @@ public class CongKhongGian : MonoBehaviour
 
     /// <summary>Cổng đang mở hẳn hoặc đang mở (không phải đã đóng / đang đóng).</summary>
     public bool DangMo => anim == 1 || (anim == 0 && doMo > 0.5f);
+
+    /// <summary>Đã tắt hẳn (doMo = 0, không còn đang mở).</summary>
+    public bool DaDong => anim != 1 && doMo <= 0.001f;
 
     /// <summary>Mở cổng trong "Thời gian mở" (điểm sáng, xoáy nở, vòng lửa bung cuối).</summary>
     public void Mo()
@@ -154,12 +164,13 @@ public class CongKhongGian : MonoBehaviour
         Emit(khoiVang, 5);
     }
 
+    /// <summary>Đặt thời gian mở / đóng (giây) lúc chạy (kỹ năng Phá Không dùng).</summary>
+    public void DatThoiGian(float mo, float dong) { thoiGianMo = Mathf.Max(0.05f, mo); thoiGianDong = Mathf.Max(0.05f, dong); }
+
     [ContextMenu("Mở cổng")] private void MenuMo() { if (Application.isPlaying) Mo(); else doMo = 1f; }
     [ContextMenu("Đóng cổng")] private void MenuDong() { if (Application.isPlaying) Dong(); else doMo = 0f; }
 
     // ----- Vòng đời -----
-
-    private bool built;
 
     private void Awake() { BuildRuntime(); }
 
@@ -180,22 +191,8 @@ public class CongKhongGian : MonoBehaviour
         for (int a = 0; a < soTiaToiDa; a++)
         {
             Arc arc = new Arc { gold = a % 2 == 0 };
-            GameObject go = new GameObject("Tia_" + a);
-            go.transform.SetParent(runtime, false);
-            LineRenderer lr = go.AddComponent<LineRenderer>();
-            lr.useWorldSpace = true;
-            lr.alignment = LineAlignment.View;
-            lr.textureMode = LineTextureMode.Stretch;
-            lr.numCapVertices = 2;
-            lr.numCornerVertices = 1;
-            lr.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.4f));
-            lr.widthMultiplier = beRongLoiTia / CoreFraction;
-            lr.sharedMaterial = arc.gold ? mGold : mBlue;
-            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lr.receiveShadows = false;
-            lr.positionCount = 0;
-            lr.enabled = false;
-            arc.lr = lr;
+            arc.lr = TiaSet.MakeLine(runtime, "Tia_" + a, arc.gold ? mGold : mBlue, beRongLoiTia, true);
+            arc.lr.enabled = false;
             arcs.Add(arc);
         }
         if (den != null)
@@ -203,7 +200,7 @@ public class CongKhongGian : MonoBehaviour
             UniversalAdditionalLightData ld = den.GetComponent<UniversalAdditionalLightData>();
             if (ld != null) ld.renderingLayers = 1u;   // chỉ chiếu lớp môi trường (mặt đất), không nhuộm nhân vật
         }
-        ApplyVisuals(0f);
+        ApplyVisuals();
     }
 
     private void OnEnable()
@@ -212,7 +209,7 @@ public class CongKhongGian : MonoBehaviour
         if (glowBlock == null) glowBlock = new MaterialPropertyBlock();
     }
 
-    private void OnValidate() { if (!Application.isPlaying) { OnEnable(); ApplyVisuals(0f); } }
+    private void OnValidate() { if (!Application.isPlaying) { OnEnable(); ApplyVisuals(); } }
 
     private void OnDestroy()
     {
@@ -238,7 +235,7 @@ public class CongKhongGian : MonoBehaviour
         float spin = anim == -1 ? Mathf.Lerp(tocDoQuayGiu, tocDoQuayDong, 1f - doMo)
                                 : Mathf.Lerp(tocDoQuayMoi, tocDoQuayGiu, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(doMo / 0.9f)));
         angle += huongQuay * spin * dt;
-        ApplyVisuals(dt);
+        ApplyVisuals();
         if (Application.isPlaying) { UpdateParticles(); UpdateLightning(dt); }
     }
 
@@ -247,16 +244,23 @@ public class CongKhongGian : MonoBehaviour
     /// <summary>Điểm sáng trắng: lóe ở khoảng doMo 0.1 (cả lúc mở lẫn lúc đóng).</summary>
     private float FlashAmount() { return Mathf.Clamp01(1f - Mathf.Abs(doMo - 0.1f) / 0.1f); }
 
-    private void ApplyVisuals(float dt)
+    private void ApplyLayer(Renderer r, float zOffset, float size, bool visible)
     {
-        if (tamXoay == null) return;
+        if (r == null) return;
+        if (r.enabled != visible) r.enabled = visible;
+        r.transform.localPosition = new Vector3(0f, 0f, zOffset);
+        r.transform.localScale = new Vector3(size, size, 1f);
+        r.SetPropertyBlock(block);
+    }
+
+    private void ApplyVisuals()
+    {
+        if (tamGiua == null || block == null) return;
         float open = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.05f, 0.75f, doMo));    // xoáy nở dần
         float fire = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.65f, 1f, doMo));       // vòng lửa bung cuối cùng
         float flash = FlashAmount();
         bool visible = doMo > 0.002f;
-        if (tamXoay.enabled != visible) tamXoay.enabled = visible;
         float size = duongKinhNgoai / PortalFrac;
-        tamXoay.transform.localScale = new Vector3(size, size, 1f);
         float flicker = 1f + 0.015f * Mathf.Sin(Time.time * 23f) * fire;
         block.Clear();
         block.SetFloat(OpenId, open * flicker);
@@ -264,7 +268,10 @@ public class CongKhongGian : MonoBehaviour
         block.SetFloat(FlashId, flash);
         block.SetFloat(AngleId, angle);
         block.SetFloat(IntensityId, doSang);
-        tamXoay.SetPropertyBlock(block);
+        ApplyLayer(tamMeo, 0f, size, visible);
+        ApplyLayer(tamLoi, doSauLoi, size, visible);
+        ApplyLayer(tamGiua, 0f, size, visible);
+        ApplyLayer(tamLua, -doNhoLua, size, visible);
         if (tamQuang != null)
         {
             bool gv = doMo > 0.02f;
@@ -297,7 +304,7 @@ public class CongKhongGian : MonoBehaviour
         {
             leftoverEmitted = true;
             Emit(domHut, 40);
-            Emit(khoiXoay, 4);
+            Emit(khoiXoay, 8);
         }
     }
 
@@ -309,7 +316,7 @@ public class CongKhongGian : MonoBehaviour
         if (!ps.isPlaying) ps.Play();
     }
 
-    // ----- Sét: chạy dọc vòng ngoài và bắn ngắn ra ngoài (cùng bộ sinh tia gãy khúc, đổi hình 0.03-0.05s, nhánh đi ra rồi lùi lại đúng đường cũ) -----
+    // ----- Sét: chạy dọc vòng ngoài và bắn ngắn ra ngoài (hình tia dựng bằng TiaSet.BuildPath, đổi hình 0.03-0.05s) -----
 
     private float Radius => duongKinhNgoai * 0.5f * transform.lossyScale.x;
 
@@ -318,7 +325,7 @@ public class CongKhongGian : MonoBehaviour
         if (mGold == null || mBlue == null) return;
         float fire = Mathf.InverseLerp(0.7f, 1f, doMo);
         float flash = FlashAmount();
-        float hdr = Mathf.Lerp(doSangLoiTia.x, doSangLoiTia.y, Mathf.Max(flash, fire > 0.9f ? 0.3f : 0f)) * Mathf.Lerp(0.7f, 1f, fire);
+        float hdr = Mathf.Lerp(doSangLoiTia.x, doSangLoiTia.y, Mathf.Max(flash, fire > 0.9f ? 0.3f : 0f));
         mGold.SetColor(BaseColorId, new Color(hdr, hdr, hdr, 1f));
         mBlue.SetColor(BaseColorId, new Color(hdr, hdr, hdr, 1f));
         if (fire > 0.05f || flash > 0.3f)
@@ -332,9 +339,11 @@ public class CongKhongGian : MonoBehaviour
             if (!a.on) continue;
             if (Time.time >= a.end) { a.on = false; a.lr.enabled = false; continue; }
             if (Time.time >= a.nextShape) { Shape(a); a.nextShape = Time.time + Random.Range(doiHinhTia.x, doiHinhTia.y); }
-            a.lr.positionCount = a.pts.Count;
-            Vector3[] arr = a.pts.ToArray();
-            a.lr.SetPositions(arr);
+            int cnt = a.pts.Count;
+            if (posArr.Length < cnt) posArr = new Vector3[cnt + 16];
+            for (int i = 0; i < cnt; i++) posArr[i] = a.pts[i];
+            a.lr.positionCount = cnt;
+            a.lr.SetPositions(posArr);
             float age = (Time.time - a.start) / Mathf.Max(0.01f, a.end - a.start);
             a.lr.startColor = a.lr.endColor = new Color(1f, 1f, 1f, 1f - age * age * age * age);
         }
@@ -355,8 +364,7 @@ public class CongKhongGian : MonoBehaviour
             free.end = Time.time + Random.Range(songTia.x, songTia.y);
             free.nextShape = 0f;
             free.angle = Random.value * Mathf.PI * 2f;
-            free.sign = Random.value < 0.5f ? 1 : -1;
-            free.span = Random.Range(0.5f, 1.3f) * free.sign;
+            free.span = Random.Range(0.5f, 1.3f) * (Random.value < 0.5f ? 1f : -1f);
             free.radius = Radius * Random.Range(0.9f, 1f);
             free.length = Random.Range(0.4f, 0.9f);
             free.gold = Random.value < 0.5f;
@@ -372,51 +380,25 @@ public class CongKhongGian : MonoBehaviour
 
     private void Shape(Arc a)
     {
-        a.pts.Clear();
-        float jit = 0.06f;
+        baseBuf.Clear();
         if (a.ring)
         {
+            // Đường gốc là cung tròn của vòng ngoài; lệch ra/vào bán kính (trong mặt phẳng cổng) và nhẹ ra khỏi mặt phẳng
             const int n = 10;
-            float s = Random.value < 0.5f ? 1f : -1f;
             for (int i = 0; i <= n; i++)
             {
                 float ang = a.angle + a.span * (i / (float)n);
-                s = -s;
-                float rad = a.radius + (i == 0 || i == n ? 0f : s * Random.Range(0.3f, 1f) * jit);
-                a.pts.Add(ToWorld(Mathf.Cos(ang) * rad, Mathf.Sin(ang) * rad, (i == 0 || i == n) ? 0f : Random.Range(-0.05f, 0.05f)));
+                baseBuf.Add(ToWorld(Mathf.Cos(ang) * a.radius, Mathf.Sin(ang) * a.radius, 0f));
             }
+            TiaSet.BuildPath(a.pts, baseBuf, 0.06f, transform.forward, 0f, 0, 0f, true);
             return;
         }
-        // Tia tỏa: từ vòng ngoài bắn ra, gãy khúc, 1-2 nhánh con (đi ra rồi lùi đúng đường cũ)
-        Vector2 baseP = new Vector2(Mathf.Cos(a.angle), Mathf.Sin(a.angle)) * a.radius;
+        // Tia tỏa: từ vòng ngoài bắn ra, gãy khúc, 1-2 nhánh con
+        Vector3 start = ToWorld(Mathf.Cos(a.angle) * a.radius, Mathf.Sin(a.angle) * a.radius, 0f);
         float dirAng = a.angle + Random.Range(-0.5f, 0.5f);
-        Vector2 d = new Vector2(Mathf.Cos(dirAng), Mathf.Sin(dirAng));
-        Vector2 perp = new Vector2(-d.y, d.x);
+        Vector3 d = transform.right * Mathf.Cos(dirAng) + transform.up * Mathf.Sin(dirAng);
         const int m = 7;
-        Vector3[] main = new Vector3[m + 1];
-        float sg = Random.value < 0.5f ? 1f : -1f;
-        for (int i = 0; i <= m; i++)
-        {
-            float t = i / (float)m;
-            sg = -sg;
-            Vector2 p = baseP + d * (a.length * t);
-            if (i > 0) p += perp * (sg * Random.Range(0.4f, 1f) * 0.14f * a.length * Mathf.Sin(Mathf.PI * Mathf.Min(1f, t * 1.05f)) + 0.01f * sg);
-            main[i] = ToWorld(p.x, p.y, i == 0 ? 0f : Random.Range(-0.06f, 0.06f));
-        }
-        int branches = Random.Range(1, 3);
-        int at1 = Random.Range(2, m), at2 = Random.Range(2, m);
-        for (int i = 0; i <= m; i++)
-        {
-            a.pts.Add(main[i]);
-            if ((i == at1 || (branches > 1 && i == at2 && at2 != at1)))
-            {
-                Vector3 bd = (transform.right * d.x + transform.up * d.y + Random.onUnitSphere * 0.9f).normalized;
-                float bl = a.length * Random.Range(0.25f, 0.45f);
-                Vector3 b0 = main[i] + bd * (bl / 3f) + Random.onUnitSphere * bl * 0.1f;
-                Vector3 b1 = b0 + bd * (bl / 3f) + Random.onUnitSphere * bl * 0.12f;
-                Vector3 b2 = b1 + bd * (bl / 3f) + Random.onUnitSphere * bl * 0.14f;
-                a.pts.Add(b0); a.pts.Add(b1); a.pts.Add(b2); a.pts.Add(b1); a.pts.Add(b0); a.pts.Add(main[i]);
-            }
-        }
+        for (int i = 0; i <= m; i++) baseBuf.Add(start + d * (a.length * (i / (float)m)));
+        TiaSet.BuildPath(a.pts, baseBuf, a.length * 0.14f, transform.forward, 0.3f, Random.Range(1, 3), a.length, false);
     }
 }
