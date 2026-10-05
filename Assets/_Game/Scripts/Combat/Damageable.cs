@@ -106,6 +106,7 @@ public class Damageable : MonoBehaviour
     {
         if (!IsAlive) return;
         info.amount *= DamageTakenMultiplier;
+        if (AdminPanel.MotDonHaGuc) info.amount = Mathf.Max(info.amount, Health);   // bảng Admin: một đòn hạ gục
         Health = Mathf.Max(0f, Health - info.amount);
         Damaged?.Invoke(info);
         AnyDamaged?.Invoke(this, info);

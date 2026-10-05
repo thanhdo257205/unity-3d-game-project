@@ -64,6 +64,7 @@ public class ShooterDummy : MonoBehaviour
     private void Update()
     {
         if (target == null || orbPrefab == null) return;
+        if (!EnemyBase.AIEnabled) return;   // bảng Admin: kẻ địch đứng yên
 
         bool canShoot = damageable.IsAlive && target.IsAlive && InRange();
         if (!canShoot)

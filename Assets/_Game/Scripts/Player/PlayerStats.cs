@@ -129,6 +129,7 @@ public class PlayerStats : MonoBehaviour
 
     private void UpdateMana()
     {
+        if (AdminPanel.PhapLucVoHan) { mana = MaxMana; return; }   // bảng Admin: pháp lực vô hạn
         float max = MaxMana;
         if (mana >= max) { mana = max; return; }
         // Đang bị trừ liên tục (đội hình Vòng) thì không hồi, nếu không Vòng gần như miễn phí
@@ -151,6 +152,7 @@ public class PlayerStats : MonoBehaviour
     public bool TrySpendMana(float amount)
     {
         if (!IsAlive) return false;
+        if (AdminPanel.PhapLucVoHan) { mana = MaxMana; return true; }   // bảng Admin: pháp lực vô hạn
         if (mana + 0.0001f < amount)
         {
             ManaInsufficient?.Invoke();
@@ -175,11 +177,12 @@ public class PlayerStats : MonoBehaviour
     }
 
     /// <summary>Kiểm tra đủ pháp lực mà không trừ (không báo cảnh báo).</summary>
-    public bool HasMana(float amount) => mana + 0.0001f >= amount;
+    public bool HasMana(float amount) => AdminPanel.PhapLucVoHan || mana + 0.0001f >= amount;
 
     /// <summary>Trừ pháp lực liên tục (ví dụ đội hình Vòng). Trả về false khi đã cạn.</summary>
     public bool DrainMana(float amount)
     {
+        if (AdminPanel.PhapLucVoHan) { mana = MaxMana; return true; }   // bảng Admin: pháp lực vô hạn
         if (mana <= 0f) return false;
         mana = Mathf.Max(0f, mana - amount);
         lastManaUseTime = Time.time;
@@ -212,6 +215,13 @@ public class PlayerStats : MonoBehaviour
     public bool TakeDamage(float amount)
     {
         if (!IsAlive || IsInvulnerable || amount <= 0f) return false;
+        if (AdminPanel.MauVoHan)
+        {
+            // Bảng Admin: máu vô hạn - vẫn báo sát thương nhận vào (viền đỏ, bất tử ngắn) nhưng không trừ máu
+            invulnerableUntil = Time.time + invulnerableTime;
+            Damaged?.Invoke(amount);
+            return true;
+        }
         health = Mathf.Max(0f, health - amount);
         invulnerableUntil = Time.time + invulnerableTime;
         Damaged?.Invoke(amount);
@@ -246,6 +256,17 @@ public class PlayerStats : MonoBehaviour
         realmIndex = index;
         mana = Mathf.Clamp(ratio, 0f, 1f) * MaxMana;
         RealmChanged?.Invoke(Realm);
+    }
+
+    /// <summary>Cảnh giới thứ index trong thang (null nếu ngoài khoảng). Bảng Admin dùng để liệt kê.</summary>
+    public RealmData GetRealm(int index) => (realmLadder != null && index >= 0 && index < realmLadder.Length) ? realmLadder[index] : null;
+
+    /// <summary>Hồi đầy máu và pháp lực (không đụng Kiếm ý, không báo hồi sinh).</summary>
+    public void RestoreAll()
+    {
+        if (!IsAlive) return;
+        health = maxHealth;
+        mana = MaxMana;
     }
 
     /// <summary>Vị trí cảnh giới hiện tại trong thang.</summary>

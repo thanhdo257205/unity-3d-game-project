@@ -15,7 +15,7 @@ public class EnemyDebugKeys : MonoBehaviour
         if (kb.f6Key.wasPressedThisFrame) EnemyBase.ReviveAll();
         if (kb.f7Key.wasPressedThisFrame)
         {
-            EnemyBase.AIEnabled = !EnemyBase.AIEnabled;
+            AdminPanel.KeDichDungYen = !AdminPanel.KeDichDungYen;   // cùng một công tắc với bảng Admin (nhãn ADMIN hiện khi đang đứng yên)
             Debug.Log("AI kẻ địch: " + (EnemyBase.AIEnabled ? "BẬT" : "TẮT (đứng yên)"));
         }
     }

@@ -94,7 +94,7 @@ public class HitFeedback : MonoBehaviour
         if (stopping && Time.unscaledTime >= hitStopEndTime)
         {
             stopping = false;
-            Time.timeScale = 1f;
+            Time.timeScale = AdminPanel.TocDoGame;   // trả về tốc độ game đang đặt trong bảng Admin (mặc định 1)
         }
     }
 
@@ -104,7 +104,7 @@ public class HitFeedback : MonoBehaviour
         if (stopping)
         {
             stopping = false;
-            Time.timeScale = 1f;
+            Time.timeScale = AdminPanel.TocDoGame;   // trả về tốc độ game đang đặt trong bảng Admin (mặc định 1)
         }
     }
 }

@@ -190,7 +190,7 @@ public class Hotbar : MonoBehaviour
         }
         if (item == null || item.type != ItemType.DanDuoc) return false;
         if (stats == null || !stats.IsAlive) return false;
-        if (Time.time < nextUseTime) return false;
+        if (Time.time < nextUseTime && !AdminPanel.KhongHoiChieu) return false;
         if (blockUseWhenManaFull && stats.Mana >= stats.MaxMana - 0.01f) return false;
 
         stats.RestoreMana(item.manaRestore);

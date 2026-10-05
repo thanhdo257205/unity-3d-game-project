@@ -161,7 +161,7 @@ public class PhaKhong : MonoBehaviour
     public float Cooldown => cooldown;
 
     /// <summary>Số giây còn phải chờ (0 = dùng được).</summary>
-    public float CooldownRemaining => Mathf.Max(0f, cooldownEnd - Time.time);
+    public float CooldownRemaining => AdminPanel.KhongHoiChieu ? 0f : Mathf.Max(0f, cooldownEnd - Time.time);
 
     /// <summary>Pháp lực mỗi lần thi triển.</summary>
     public float Cost => cost;
