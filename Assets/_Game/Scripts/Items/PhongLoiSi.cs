@@ -197,11 +197,11 @@ public class PhongLoiSi : MonoBehaviour
     [SerializeField] private Vector2 boostFlap = new Vector2(34f, 0.55f);
 
     [Header("Sấm sét theo trạng thái (cuongDoSet 0-1; cánh xếp = 0)")]
-    [Tooltip("Cường độ sét (cuongDoSet) khi cánh mở nhưng đứng trên đất (nhẹ, 30%).")]
-    [SerializeField, Range(0f, 1f)] private float levelGround = 0.3f;
+    [Tooltip("Cường độ sét (cuongDoSet) khi cánh mở nhưng đứng trên đất (nhẹ, 35%).")]
+    [SerializeField, Range(0f, 1f)] private float levelGround = 0.35f;
 
-    [Tooltip("Cường độ sét khi bay thường (vừa, 60%; lơ lửng thấp hơn một chút).")]
-    [SerializeField, Range(0f, 1f)] private float levelFly = 0.6f;
+    [Tooltip("Cường độ sét khi bay thường (vừa, 65%; lơ lửng thấp hơn một chút).")]
+    [SerializeField, Range(0f, 1f)] private float levelFly = 0.65f;
 
     [Tooltip("Cường độ sét khi bay tăng tốc (100%, kèm vệt sáng mảnh sau đầu cánh).")]
     [SerializeField, Range(0f, 1f)] private float levelBoost = 1f;
@@ -938,6 +938,8 @@ public class PhongLoiSi : MonoBehaviour
         {
             Lx.SetLevel(Mathf.Clamp01(level));
             Lx.SetStreaks(streams && !FrozenForRift);
+            Lx.SetFlying(flying);
+            Lx.SetFlightVelocity(flightVelocity);
         }
     }
 

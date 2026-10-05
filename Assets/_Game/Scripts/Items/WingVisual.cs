@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -49,6 +50,13 @@ public class WingVisual : MonoBehaviour
     [Tooltip("Độ sáng mép lông tăng thêm theo nhịp vỗ.")]
     [SerializeField, Min(0f)] private float emissionPulse = 1.1f;
 
+    [Tooltip("Màu viền phát sáng của lông cánh (HDR, xanh lơ ngọc).")]
+    [ColorUsage(false, true)]
+    [SerializeField] private Color edgeColor = new Color(0.1f, 0.85f, 1.1f, 1f);
+
+    [Tooltip("Viền lông cánh sáng thêm bấy nhiêu (cộng vào độ sáng) khi sét bùng mạnh.")]
+    [SerializeField, Min(0f)] private float edgeBurstExtra = 2.5f;
+
     private static readonly int EdgeIntensityId = Shader.PropertyToID("_EdgeIntensity");
 
     private Animator animator;
@@ -67,6 +75,11 @@ public class WingVisual : MonoBehaviour
 
     /// <summary>Sấm sét nằm trong prefab cánh (null nếu prefab chưa có).</summary>
     public WingLightning Lightning { get; private set; }
+
+    private float burstGlow;
+
+    /// <summary>Độ sáng viền lông cánh thêm theo đợt bùng sét (0-1). WingLightning đặt mỗi khung.</summary>
+    public void SetBurstGlow(float amount01) { burstGlow = Mathf.Clamp01(amount01); }
 
     private Quaternion orientation = Quaternion.identity;
     private Quaternion offsetFrame = Quaternion.identity;
@@ -145,10 +158,46 @@ public class WingVisual : MonoBehaviour
             renderers.Add(smr);
             if (smr.name.StartsWith("Long_"))
             {
-                if (featherInstance == null) featherInstance = new Material(smr.sharedMaterial);
+                if (featherInstance == null)
+                {
+                    featherInstance = new Material(smr.sharedMaterial);
+                    featherInstance.SetColor("_EdgeEmission", edgeColor);
+                }
                 smr.sharedMaterial = featherInstance;
             }
             smr.enabled = false;
+        }
+        EqualizeFeatherBrightness();
+    }
+
+    /// <summary>Hai lưới lông có màu đỉnh sáng tối khác nhau: nhân độ sáng riêng cho từng lưới để hai cánh sáng bằng nhau (shader đã ép cùng một tông màu).</summary>
+    private void EqualizeFeatherBrightness()
+    {
+        List<SkinnedMeshRenderer> feathers = new List<SkinnedMeshRenderer>();
+        List<float> means = new List<float>();
+        foreach (Renderer r in renderers)
+        {
+            SkinnedMeshRenderer smr = r as SkinnedMeshRenderer;
+            if (smr == null || !smr.name.StartsWith("Long_") || smr.sharedMesh == null) continue;
+            Color[] cols = smr.sharedMesh.colors;
+            if (cols == null || cols.Length == 0) continue;
+            float sum = 0f;
+            for (int i = 0; i < cols.Length; i++) sum += Mathf.Max(cols[i].r, Mathf.Max(cols[i].g, cols[i].b));
+            feathers.Add(smr);
+            means.Add(sum / cols.Length);
+        }
+        if (feathers.Count < 2) return;
+        float target = 1f;
+        for (int i = 0; i < means.Count; i++) target *= Mathf.Max(0.001f, means[i]);
+        target = Mathf.Pow(target, 1f / means.Count);     // trung bình nhân
+        float baseBrighten = featherInstance != null ? featherInstance.GetFloat("_Brighten") : 1.6f;
+        MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+        for (int i = 0; i < feathers.Count; i++)
+        {
+            float f = Mathf.Clamp(target / Mathf.Max(0.001f, means[i]), 0.6f, 2.5f);
+            feathers[i].GetPropertyBlock(mpb);
+            mpb.SetFloat("_Brighten", baseBrighten * f);
+            feathers[i].SetPropertyBlock(mpb);
         }
     }
 
@@ -329,7 +378,7 @@ public class WingVisual : MonoBehaviour
 
         if (featherInstance != null)
         {
-            float e = emissionBase + emissionPulse * pulse;
+            float e = emissionBase + emissionPulse * pulse + edgeBurstExtra * burstGlow;
             if (flickering) e *= Random.Range(0.1f, 1.2f);
             featherInstance.SetFloat(EdgeIntensityId, e);
         }

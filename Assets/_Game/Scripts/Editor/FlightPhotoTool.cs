@@ -20,6 +20,7 @@ public static class FlightPhotoTool
         public float duration;
         public bool sample;
         public bool flash;
+        public string[] views = { "sau" };   // sau / truoc / ngang
         public Action begin;
         public Action end;
     }
@@ -69,10 +70,10 @@ public static class FlightPhotoTool
         if (!pl.IsOpen) { hb.Select(3); hb.TryUseSelected(); }
         steps = new List<Step>();
         steps.Add(new Step { name = "mo", duration = 1.2f });
-        steps.Add(new Step { name = "dung", duration = 4.5f, sample = false, flash = true, begin = () => ResetFrames(), end = () => { }, });
+        steps.Add(new Step { name = "dung", duration = 4.5f, flash = true, views = new[] { "sau", "truoc" }, begin = () => ResetFrames() });
         steps.Add(new Step { name = "len", duration = 1.6f, begin = () => pl.TestSetInput(Vector2.zero, 1f, false) });
         steps.Add(new Step { name = "thuong", duration = 4.5f, flash = true, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, false); ResetFrames(); } });
-        steps.Add(new Step { name = "tangtoc", duration = 4.5f, flash = true, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, true); ResetFrames(); } });
+        steps.Add(new Step { name = "tangtoc", duration = 4.5f, flash = true, views = new[] { "sau", "ngang" }, begin = () => { pl.TestSetInput(new Vector2(0f, 1f), 0f, true); ResetFrames(); } });
         steps.Add(new Step { name = "xong", duration = 0.1f, begin = () => pl.TestClearInput() });
         index = -1;
         stepStart = 0f;
@@ -118,7 +119,8 @@ public static class FlightPhotoTool
             if (!flashShot && wl != null && wl.IsFlashing && Time.time - wl.LastFlashStart >= 0.025f)
             {
                 flashShot = true;
-                Shoot(steps[index].name, false);
+                foreach (string v in steps[index].views)
+                    Shoot(steps[index].name + (v == "sau" ? "" : "_" + v), v);
             }
         }
         EditorApplication.QueuePlayerLoopUpdate();
@@ -161,19 +163,24 @@ public static class FlightPhotoTool
 
     // ----- Chụp ảnh, tự cắt quanh nhân vật -----
 
-    private static void Shoot(string name, bool side)
+    private static void Shoot(string name, bool side) { Shoot(name, side ? "ngang" : "sau"); }
+
+    private static void Shoot(string name, string view)
     {
         Camera cam = Camera.main;
         GameObject tmp = null;
-        if (side)
+        if (view != "sau")
         {
             tmp = new GameObject("TmpCam");
             cam = tmp.AddComponent<Camera>();
             cam.fieldOfView = Camera.main.fieldOfView;
             Vector3 c = pc.transform.position + Vector3.up * 1.2f;
-            cam.transform.position = c + pc.transform.right * 7f;
+            Vector3 off = view == "truoc" ? pc.transform.forward * 5f + Vector3.up * 0.3f : pc.transform.right * 7f;
+            cam.transform.position = c + off;
             cam.transform.LookAt(c);
         }
+        WingLightning.ViewCamera = tmp != null ? cam : null;
+        if (pl.Lightning != null) pl.Lightning.SendMessage("LateUpdate", SendMessageOptions.DontRequireReceiver);   // quầng quay theo camera tạm trước khi vẽ
         const int W = 3840, H = 2160;
         RenderTexture rt = new RenderTexture(W, H, 24);
         RenderTexture prev = cam.targetTexture;
@@ -228,8 +235,41 @@ public static class FlightPhotoTool
         UnityEngine.Object.DestroyImmediate(outTex);
         small.Release(); UnityEngine.Object.DestroyImmediate(small);
         rt.Release(); UnityEngine.Object.DestroyImmediate(rt);
+        WingLightning.ViewCamera = null;
         if (tmp != null) UnityEngine.Object.DestroyImmediate(tmp);
         Debug.Log("[Ảnh bay] " + name + " v=" + pl.FlightVelocity.magnitude.ToString("F1") + " nhanVatCao=" + (bh / ch * 100f).ToString("F0") + "%khung " + Describe());
+    }
+
+    /// <summary>Độ rộng tà áo: bề ngang đáy tà (đoạn dưới cùng) chia bề ngang ngang hông, đo trên mọi lưới của nhân vật (trừ cánh) theo trục thân. ~1 = thẳng, >1.4 = xòe hình chuông.</summary>
+    private static string RobeWidth()
+    {
+        Transform hips = anim.GetBoneTransform(HumanBodyBones.Hips);
+        Transform neck = anim.GetBoneTransform(HumanBodyBones.Neck);
+        Vector3 down = (hips.position - neck.position).normalized;
+        Vector3 right = (anim.GetBoneTransform(HumanBodyBones.RightUpperArm).position - anim.GetBoneTransform(HumanBodyBones.LeftUpperArm).position);
+        right = Vector3.ProjectOnPlane(right, down).normalized;
+        List<Vector2> pts = new List<Vector2>();   // x = ngang, y = xuống dưới hông
+        foreach (SkinnedMeshRenderer smr in pc.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            if (smr.transform.IsChildOf(pl.Visual.transform)) continue;
+            Mesh m = new Mesh();
+            smr.BakeMesh(m, true);
+            foreach (Vector3 v in m.vertices)
+            {
+                Vector3 w = smr.transform.position + smr.transform.rotation * v - hips.position;
+                pts.Add(new Vector2(Vector3.Dot(w, right), Vector3.Dot(w, down)));
+            }
+            UnityEngine.Object.DestroyImmediate(m);
+        }
+        float maxY = -99f;
+        foreach (Vector2 p in pts) if (p.y > maxY && Mathf.Abs(p.x) < 0.5f) maxY = p.y;
+        float hMin = 99f, hMax = -99f, bMin = 99f, bMax = -99f;
+        foreach (Vector2 p in pts)
+        {
+            if (p.y > maxY - 0.1f && p.y <= maxY) { hMin = Mathf.Min(hMin, p.x); hMax = Mathf.Max(hMax, p.x); }
+            if (p.y > 0f && p.y < 0.12f && Mathf.Abs(p.x) < 0.5f) { bMin = Mathf.Min(bMin, p.x); bMax = Mathf.Max(bMax, p.x); }
+        }
+        return " aoRong=" + ((hMax - hMin) / Mathf.Max(0.05f, bMax - bMin)).ToString("F2") + " (day " + (hMax - hMin).ToString("F2") + "m / hong " + (bMax - bMin).ToString("F2") + "m)";
     }
 
     /// <summary>Số đo: độ lệch trục phải của cánh so với nhân vật, độ nghiêng thân và cánh, vai/hông lệch, hai chân cách nhau.</summary>
@@ -246,7 +286,7 @@ public static class FlightPhotoTool
         float wingBackDeg = Vector3.SignedAngle(Vector3.up, tr.up, pc.transform.right);
         return "vaiLech=" + Vector3.Angle(shoulders, tr.right).ToString("F0") + " hongLech=" + Vector3.Angle(hipLine, tr.right).ToString("F0")
             + " chanCachNhau=" + Vector3.Distance(lf.position, rf.position).ToString("F2") + " thanNghieng=" + tilt.ToString("F0")
-            + " canhNgaSau=" + (-wingBackDeg).ToString("F0") + " canhRight-lech=" + Vector3.Angle(pc.transform.right, tr.right).ToString("F0");
+            + RobeWidth() + " canhNgaSau=" + (-wingBackDeg).ToString("F0") + " canhRight-lech=" + Vector3.Angle(pc.transform.right, tr.right).ToString("F0");
     }
 }
 #endif

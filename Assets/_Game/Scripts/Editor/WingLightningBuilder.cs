@@ -1,17 +1,18 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering.Universal;
 using UnityEngine.VFX;
 
 /// <summary>
-/// Dựng toàn bộ sấm sét cho Phong Lôi Sí (xem WingLightning):
-/// - "Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Dựng bản thử trong TestVFX": đặt một cánh (instance của prefab) vào scene TestVFX và dựng sét lên đó để xem trước.
+/// Dựng sấm sét cho Phong Lôi Sí (xem WingLightning):
+/// - "Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Dựng bản thử trong TestVFX": đặt một cánh (instance của prefab) vào scene TestVFX để xem trước.
 /// - "Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Gắn vào prefab PhongLoiSi": dựng thẳng vào Assets/_Game/Prefabs/PhongLoiSi.prefab.
-/// Mỗi lần dựng sẽ xóa bản sấm sét cũ (đối tượng "HieuUngSet") rồi dựng lại. Không đụng tới file .vfx hay mô hình.
-/// 8 điểm sét mỗi cánh là Transform rỗng "Set_Diem_*" gắn làm con của các xương cánh (Canh_T1..3 / Canh_P1..3), rải từ gốc tới đầu cánh theo đường xương.
+/// Việc dựng: (1) vẽ các ảnh tia sét/quầng (nếu chưa có) và các vật liệu cộng sáng; (2) tạo 8 điểm sét (Transform rỗng "Set_Diem_*") làm con của các
+/// xương cánh Canh_T1..3 / Canh_P1..3, rải từ gốc tới đầu cánh theo đường xương; (3) thêm WingLightning vào đối tượng con "HieuUngSet" và gán vật liệu.
+/// Các tia, vệt, quầng, đèn do WingLightning tự tạo lúc chạy. Mỗi lần dựng sẽ xóa bản "HieuUngSet" cũ rồi dựng lại. Không đụng tới mô hình.
 /// </summary>
 public static class WingLightningBuilder
 {
@@ -19,15 +20,13 @@ public static class WingLightningBuilder
     private const string ScenePath = "Assets/_Game/Scenes/TestVFX.unity";
     private const string BenchName = "Test_PhongLoiSi_Set";
     private const string FolderName = "HieuUngSet";
-    private const string MatSecondary = "Assets/_Game/Materials/VFX_SetPhu.mat";
-    private const string MatStreak = "Assets/_Game/Materials/VFX_VetCanh.mat";
     private const string MatBase = "Assets/_Game/Materials/VFX_VetKiem.mat";
-    private const string TexLighting = "Assets/_Game/VFX/Textures/TX_Lighting.tga";
+    private const string TexDir = "Assets/_Game/VFX/Textures/";
+    private const string MatDir = "Assets/_Game/Materials/";
 
     [MenuItem("Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Dựng bản thử trong TestVFX")]
     public static void BuildBench()
     {
-        Scene();
         var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         GameObject bench = GameObject.Find(BenchName);
         if (bench != null) Object.DestroyImmediate(bench);
@@ -36,7 +35,7 @@ public static class WingLightningBuilder
         bench.name = BenchName;
         bench.transform.position = new Vector3(0f, 1.3f, 0f);
         bench.transform.rotation = Quaternion.identity;
-        if (bench.transform.Find(FolderName) == null) Build(bench);   // prefab đã có sấm sét thì dùng luôn, chưa có thì dựng thử lên bản này
+        if (bench.transform.Find(FolderName) == null) Build(bench);   // prefab đã có sấm sét thì dùng luôn
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[Sấm sét] Đã dựng bản thử trong TestVFX (đối tượng " + BenchName + "). Bấm Play, chỉnh 'cuongDoSet' trong WingLightning (HieuUngSet).");
@@ -45,7 +44,6 @@ public static class WingLightningBuilder
     [MenuItem("Phàm Kiếm Lục/Sấm sét Phong Lôi Sí/Gắn vào prefab PhongLoiSi")]
     public static void BuildPrefab()
     {
-        Scene();
         GameObject root = PrefabUtility.LoadPrefabContents(PrefabPath);
         try
         {
@@ -57,127 +55,172 @@ public static class WingLightningBuilder
         Debug.Log("[Sấm sét] Đã gắn sấm sét vào " + PrefabPath);
     }
 
-    private static void Scene() { BuildMaterials(); }
+    // ================= Ảnh và vật liệu =================
 
-    // ================= Vật liệu =================
-
-    private static void BuildMaterials()
+    private static Texture2D MakeBoltTexture(string name, Color inner, Color outer)
     {
+        string path = TexDir + name + ".png";
+        if (!File.Exists(path))
+        {
+            // Mặt cắt ngang tia (trục v): giữa gần trắng -> màu -> màu cam/xanh đậm -> đen ở mép (cộng sáng nên đen = trong suốt)
+            const int h = 64;
+            Texture2D t = new Texture2D(4, h, TextureFormat.RGBA32, false);
+            for (int y = 0; y < h; y++)
+            {
+                float p = Mathf.Abs((y + 0.5f) / h * 2f - 1f);              // 0 giữa, 1 mép
+                Color c = Color.Lerp(new Color(1f, 1f, 0.9f), inner, Mathf.SmoothStep(0.03f, 0.14f, p));
+                c = Color.Lerp(c, outer, Mathf.SmoothStep(0.3f, 0.8f, p));
+                float fade = 1f - Mathf.SmoothStep(0.55f, 1f, p);   // đậm đặc tới giữa dải rồi mới mờ ra mép
+                c = new Color(c.r, c.g, c.b, fade);   // alpha = hình tia, màu giữ nguyên (trộn alpha để màu hiện rõ cả trên nền sáng)
+                for (int x = 0; x < 4; x++) t.SetPixel(x, y, c);
+            }
+            t.Apply();
+            File.WriteAllBytes(path, t.EncodeToPNG());
+            Object.DestroyImmediate(t);
+            AssetDatabase.ImportAsset(path);
+            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
+            imp.mipmapEnabled = false;
+            imp.wrapMode = TextureWrapMode.Clamp;
+            imp.alphaIsTransparency = true;
+            imp.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    /// <summary>Ảnh nhiễu cho dải lửa: lấy độ sáng của RidgedPerlin.png làm alpha, màu trắng (màu cam do vật liệu nhuộm), nền dày hơn để dải lửa đặc.</summary>
+    private static Texture2D MakeFireTexture()
+    {
+        string path = TexDir + "DaiLua_Nhieu.png";
+        if (!File.Exists(path))
+        {
+            Texture2D src = new Texture2D(2, 2);
+            src.LoadImage(File.ReadAllBytes(TexDir + "RidgedPerlin.png"));
+            Color[] px = src.GetPixels();
+            for (int i = 0; i < px.Length; i++)
+            {
+                float g = px[i].grayscale;
+                float a = Mathf.Clamp01(0.05f + Mathf.Pow(g, 1.2f) * 1.25f);   // tương phản cao để lửa có vệt cuộn rõ
+                px[i] = new Color(1f, 1f, 1f, a);
+            }
+            Texture2D t = new Texture2D(src.width, src.height, TextureFormat.RGBA32, false);
+            t.SetPixels(px);
+            t.Apply();
+            File.WriteAllBytes(path, t.EncodeToPNG());
+            Object.DestroyImmediate(src);
+            Object.DestroyImmediate(t);
+            AssetDatabase.ImportAsset(path);
+            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
+            imp.wrapMode = TextureWrapMode.Repeat;
+            imp.alphaIsTransparency = true;
+            imp.mipmapEnabled = true;
+            imp.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Texture2D MakeGlowTexture()
+    {
+        string path = TexDir + "QuangLungSet.png";
+        if (!File.Exists(path))
+        {
+            const int n = 128;
+            Texture2D t = new Texture2D(n, n, TextureFormat.RGBA32, false);
+            Color gold = new Color(1f, 0.78f, 0.3f), blue = new Color(0.12f, 0.6f, 1f);
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (x + 0.5f) / n * 2f - 1f, v = (y + 0.5f) / n * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v);
+                    Color c = Color.Lerp(gold, blue, Mathf.SmoothStep(0.1f, 0.75f, r));    // vàng ở tâm, xanh ở rìa
+                    float f = 1f - Mathf.SmoothStep(0f, 1f, r);
+                    f *= f;
+                    t.SetPixel(x, y, new Color(c.r * f, c.g * f, c.b * f, 1f));
+                }
+            t.Apply();
+            File.WriteAllBytes(path, t.EncodeToPNG());
+            Object.DestroyImmediate(t);
+            AssetDatabase.ImportAsset(path);
+            TextureImporter imp = (TextureImporter)AssetImporter.GetAtPath(path);
+            imp.mipmapEnabled = false;
+            imp.wrapMode = TextureWrapMode.Clamp;
+            imp.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Material MakeMat(string name, Texture tex, Color color, bool alphaBlend = false)
+    {
+        string path = MatDir + name + ".mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
         Material baseMat = AssetDatabase.LoadAssetAtPath<Material>(MatBase);
-        Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(TexLighting);
-        if (baseMat == null || tex == null) { Debug.LogError("[Sấm sét] Thiếu " + MatBase + " hoặc " + TexLighting); return; }
-        if (AssetDatabase.LoadAssetAtPath<Material>(MatSecondary) == null)
+        if (baseMat == null) { Debug.LogError("[Sấm sét] Thiếu " + MatBase); return null; }
+        if (m == null)
         {
-            Material m = new Material(baseMat) { name = "VFX_SetPhu" };
-            m.SetTexture("_BaseMap", tex);
-            m.SetColor("_BaseColor", new Color(1.3f, 1.1f, 2.2f, 1f));
-            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
-            AssetDatabase.CreateAsset(m, MatSecondary);
+            m = new Material(baseMat) { name = name };
+            AssetDatabase.CreateAsset(m, path);
         }
-        if (AssetDatabase.LoadAssetAtPath<Material>(MatStreak) == null)
+        m.SetTexture("_BaseMap", tex);
+        m.SetColor("_BaseColor", color);
+        if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
+        if (alphaBlend)
         {
-            Material m = new Material(baseMat) { name = "VFX_VetCanh" };
-            m.SetColor("_BaseColor", new Color(0.8f, 1.2f, 2.4f, 1f));
-            m.SetTexture("_BaseMap", null);
-            if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
-            AssetDatabase.CreateAsset(m, MatStreak);
+            // Trộn alpha thường (không cộng sáng) để màu vàng/xanh hiện rõ cả trên nền trời sáng; độ chói HDR vẫn cho Bloom bắt
+            m.SetFloat("_Blend", 0f);
+            m.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            m.SetFloat("_ZWrite", 0f);
         }
-        AssetDatabase.SaveAssets();
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     // ================= Dựng =================
 
     public static void Build(GameObject root)
     {
+        Texture2D vang = MakeBoltTexture("Set_Vang", new Color(1f, 0.55f, 0f), new Color(1f, 0.22f, 0f));
+        Texture2D xanh = MakeBoltTexture("Set_Xanh", new Color(0f, 0.65f, 1f), new Color(0f, 0.22f, 1f));
+        Texture2D glow = MakeGlowTexture();
+        Texture2D ridged = MakeFireTexture();
+        Texture2D dot = AssetDatabase.LoadAssetAtPath<Texture2D>(TexDir + "QuangTron.png");
+        Material mGold = MakeMat("VFX_SetVang", vang, Color.white * 1.1f, true);
+        Material mBlue = MakeMat("VFX_SetXanh", xanh, Color.white * 1.1f, true);
+        Material mGlow = MakeMat("VFX_QuangLungSet", glow, new Color(1.6f, 1.6f, 1.6f, 0.1f));
+        // màu cam HDR; ảnh nhiễu trắng + alpha
+        Material mFire = MakeMat("VFX_DaiLua", ridged, new Color(2.4f, 1.0f, 0.12f, 1.2f), true);
+        Material mRib = MakeMat("VFX_DaiXanh", xanh, new Color(1.6f, 1.6f, 1.6f, 1f), true);
+        Material mSpark = MakeMat("VFX_TiaLuaCanh", dot, new Color(1f, 1f, 1f, 1f));
+        AssetDatabase.SaveAssets();
+
         Transform old = root.transform.Find(FolderName);
         if (old != null) Object.DestroyImmediate(old.gameObject);
-        // Xóa các điểm sét cũ trong xương
-        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
-            if (t != null && t.name.StartsWith("Set_Diem_")) { /* sẽ xóa sau */ }
         List<GameObject> stale = new List<GameObject>();
         foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) if (t.name.StartsWith("Set_Diem_")) stale.Add(t.gameObject);
         foreach (GameObject g in stale) if (g != null) Object.DestroyImmediate(g);
 
-        Transform[][] bones = { FindBones(root.transform, "Canh_T"), FindBones(root.transform, "Canh_P") };   // [0] cánh trái (-X), [1] cánh phải (+X)
+        Transform[][] bones = { FindBones(root.transform, "Canh_T"), FindBones(root.transform, "Canh_P") };
         if (bones[0][0] == null || bones[1][0] == null) { Debug.LogError("[Sấm sét] Không thấy xương cánh Canh_T1..3 / Canh_P1..3."); return; }
 
         GameObject folder = new GameObject(FolderName);
         folder.transform.SetParent(root.transform, false);
 
         Transform[][] points = new Transform[2][];
-        Vector3[] wingCenter = new Vector3[2];
-        for (int s = 0; s < 2; s++)
-        {
-            points[s] = MakePoints(bones[s], s == 0 ? "T" : "P");
-            wingCenter[s] = (points[s][0].position + points[s][7].position) * 0.5f;
-        }
-        // Cánh bên nào nằm ở -X thì là cánh trái
-        if (wingCenter[0].x > wingCenter[1].x) Debug.LogWarning("[Sấm sét] Canh_T đang nằm ở +X: kiểm tra lại quy ước trái/phải.");
+        for (int s = 0; s < 2; s++) points[s] = MakePoints(bones[s], s == 0 ? "T" : "P");
+        // Mảng [0] = cánh nằm ở -X (trái), [1] = cánh ở +X (phải)
+        if (points[0][3].position.x > points[1][3].position.x) { Transform[] tmp = points[0]; points[0] = points[1]; points[1] = tmp; }
 
-        VisualEffectAsset coreAsset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>("Assets/_Game/VFX/SetCanh.vfx");
-        VisualEffectAsset haloAsset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>("Assets/_Game/VFX/SetCanhQuang.vfx");
-        VisualEffectAsset sparkAsset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>("Assets/_Game/VFX/TiaLuaCanh.vfx");
-        VisualEffectAsset dustAsset = AssetDatabase.LoadAssetAtPath<VisualEffectAsset>("Assets/_Game/VFX/BuiDapDat.vfx");
-        Material secMat = AssetDatabase.LoadAssetAtPath<Material>(MatSecondary);
-        Material streakMat = AssetDatabase.LoadAssetAtPath<Material>(MatStreak);
-
-        VisualEffect[] core = new VisualEffect[2], halo = new VisualEffect[2], sparks = new VisualEffect[2];
-        ParticleSystem[] secondary = new ParticleSystem[2];
-        TrailRenderer[] streaks = new TrailRenderer[2];
-        SkinnedMeshRenderer[] feathers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-
-        for (int s = 0; s < 2; s++)
-        {
-            string side = s == 0 ? "Trai" : "Phai";
-            // Sét chính: lõi + quầng đặt cố định giữa cánh (giới hạn vẽ 8m quanh nó), vị trí sét lấy từ 8 điểm gắn xương
-            GameObject set = new GameObject("Set_" + side);
-            set.transform.SetParent(folder.transform, false);
-            set.transform.position = wingCenter[s];
-            core[s] = MakeVfx("Loi", set.transform, coreAsset);
-            halo[s] = MakeVfx("Quang", set.transform, haloAsset);
-
-            // Tia lửa ở đầu cánh
-            sparks[s] = MakeVfx("TiaLua_" + side, points[s][7], sparkAsset);
-
-            // Sét phụ trên bề mặt lông cánh: chọn lưới lông nằm cùng phía
-            SkinnedMeshRenderer smr = PickFeather(feathers, root.transform, wingCenter[s].x);
-            GameObject sec = new GameObject("SetPhu_" + side);
-            sec.transform.SetParent(folder.transform, false);
-            secondary[s] = MakeSecondary(sec, smr, secMat);
-
-            // Vệt sáng khi tăng tốc: gắn đầu cánh
-            GameObject tr = new GameObject("VetSang_" + side);
-            tr.transform.SetParent(points[s][7], false);
-            streaks[s] = MakeTrail(tr, streakMat);
-        }
-
-        // Đèn giữa lưng: ở gốc của prefab cánh (tâm hai gốc cánh), hơi nâng lên
-        GameObject lightGo = new GameObject("Den_Lung");
-        lightGo.transform.SetParent(folder.transform, false);
-        lightGo.transform.localPosition = new Vector3(0f, 0.1f, 0f);
-        Light light = lightGo.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.color = new Color(0.72f, 0.55f, 1f, 1f);
-        light.range = 4f;
-        light.intensity = 0f;
-        light.shadows = LightShadows.None;
-        light.enabled = false;
-        UniversalAdditionalLightData ld = lightGo.AddComponent<UniversalAdditionalLightData>();
-        ld.renderingLayers = uint.MaxValue;    // sáng cả nhân vật (lớp ánh sáng riêng) lẫn mặt đất
-
-        // Bụi đáp đất
-        VisualEffect dust = MakeVfx("BuiDapDat", folder.transform, dustAsset);
+        VisualEffect dust = MakeVfx("BuiDapDat", folder.transform, AssetDatabase.LoadAssetAtPath<VisualEffectAsset>("Assets/_Game/VFX/BuiDapDat.vfx"));
 
         WingLightning wl = folder.AddComponent<WingLightning>();
         SerializedObject so = new SerializedObject(wl);
         SetArray(so.FindProperty("pointsLeft"), points[0]);
         SetArray(so.FindProperty("pointsRight"), points[1]);
-        SetArray(so.FindProperty("coreVfx"), core);
-        SetArray(so.FindProperty("haloVfx"), halo);
-        SetArray(so.FindProperty("secondary"), secondary);
-        SetArray(so.FindProperty("sparksVfx"), sparks);
-        SetArray(so.FindProperty("streaks"), streaks);
-        so.FindProperty("backLight").objectReferenceValue = light;
+        so.FindProperty("matGold").objectReferenceValue = mGold;
+        so.FindProperty("matBlue").objectReferenceValue = mBlue;
+        so.FindProperty("matGlow").objectReferenceValue = mGlow;
+        so.FindProperty("matFire").objectReferenceValue = mFire;
+        so.FindProperty("matRibbon").objectReferenceValue = mRib;
+        so.FindProperty("matSpark").objectReferenceValue = mSpark;
         so.FindProperty("dustVfx").objectReferenceValue = dust;
         so.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(root);
@@ -227,85 +270,6 @@ public static class WingLightningBuilder
         v.visualEffectAsset = asset;
         v.initialEventName = "KhongPhat";    // không tự phát khi bật; WingLightning gửi sự kiện OnPlay khi cần
         return v;
-    }
-
-    private static SkinnedMeshRenderer PickFeather(SkinnedMeshRenderer[] all, Transform root, float sideX)
-    {
-        SkinnedMeshRenderer best = null;
-        float bestDist = float.MaxValue;
-        foreach (SkinnedMeshRenderer r in all)
-        {
-            if (!r.name.StartsWith("Long_")) continue;
-            float cx = root.InverseTransformPoint(r.bounds.center).x;
-            float d = Mathf.Abs(cx - sideX);
-            if (d < bestDist) { bestDist = d; best = r; }
-        }
-        return best;
-    }
-
-    private static ParticleSystem MakeSecondary(GameObject go, SkinnedMeshRenderer smr, Material mat)
-    {
-        ParticleSystem ps = go.AddComponent<ParticleSystem>();
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        var main = ps.main;
-        main.duration = 1f;
-        main.loop = true;
-        main.playOnAwake = false;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.05f, 0.12f);
-        main.startSpeed = 0f;
-        main.startSize = new ParticleSystem.MinMaxCurve(0.2f, 0.5f);
-        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-        main.startColor = Color.white;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 40;
-        var em = ps.emission;
-        em.enabled = true;
-        em.rateOverTime = 0f;
-        var shape = ps.shape;
-        shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.SkinnedMeshRenderer;
-        shape.skinnedMeshRenderer = smr;
-        shape.meshShapeType = ParticleSystemMeshShapeType.Triangle;
-        shape.normalOffset = 0.02f;
-        var sheet = ps.textureSheetAnimation;
-        sheet.enabled = true;
-        sheet.mode = ParticleSystemAnimationMode.Grid;
-        sheet.numTilesX = 4;
-        sheet.numTilesY = 2;
-        sheet.animation = ParticleSystemAnimationType.WholeSheet;
-        sheet.frameOverTime = new ParticleSystem.MinMaxCurve(0f);
-        sheet.startFrame = new ParticleSystem.MinMaxCurve(0f, 1f);
-        sheet.cycleCount = 1;
-        var colorLife = ps.colorOverLifetime;
-        colorLife.enabled = true;
-        Gradient g = new Gradient();
-        g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
-                  new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.15f), new GradientAlphaKey(0f, 1f) });
-        colorLife.color = g;
-        ParticleSystemRenderer pr = go.GetComponent<ParticleSystemRenderer>();
-        pr.renderMode = ParticleSystemRenderMode.Billboard;
-        pr.sharedMaterial = mat;
-        pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        pr.receiveShadows = false;
-        return ps;
-    }
-
-    private static TrailRenderer MakeTrail(GameObject go, Material mat)
-    {
-        TrailRenderer t = go.AddComponent<TrailRenderer>();
-        t.time = 0.16f;
-        t.minVertexDistance = 0.05f;
-        t.widthCurve = new AnimationCurve(new Keyframe(0f, 0.025f), new Keyframe(1f, 0f));
-        t.alignment = LineAlignment.View;
-        t.sharedMaterial = mat;
-        t.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        t.receiveShadows = false;
-        Gradient g = new Gradient();
-        g.SetKeys(new[] { new GradientColorKey(new Color(0.9f, 1f, 1f), 0f), new GradientColorKey(new Color(0.55f, 0.75f, 1f), 1f) },
-                  new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0f, 1f) });
-        t.colorGradient = g;
-        t.emitting = false;
-        return t;
     }
 }
 #endif

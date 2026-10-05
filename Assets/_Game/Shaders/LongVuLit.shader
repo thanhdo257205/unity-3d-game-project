@@ -11,6 +11,9 @@ Shader "PhamKiemLuc/LongVuLit"
         _BaseColor("Màu nhân", Color) = (1, 1, 1, 1)
         _VertexColorStrength("Dùng màu đỉnh (0-1)", Range(0, 1)) = 1
         _Brighten("Làm sáng màu đỉnh", Float) = 1.6
+        _HueLock("Ép màu đỉnh về một tông (0-1)", Range(0, 1)) = 1
+        _HueTarget("Tông màu ép về (0-1, 0.52 = xanh lơ ngọc)", Range(0, 1)) = 0.52
+        _MinSaturation("Độ đậm màu tối thiểu khi ép tông", Range(0, 1)) = 0.55
         _Cutoff("Ngưỡng alpha", Range(0, 1)) = 0.5
         _Metallic("Kim loại", Range(0, 1)) = 0.15
         _Smoothness("Độ bóng", Range(0, 1)) = 0.45
@@ -50,6 +53,9 @@ Shader "PhamKiemLuc/LongVuLit"
                 float4 _BaseColor;
                 float _VertexColorStrength;
                 float _Brighten;
+                float _HueLock;
+                float _HueTarget;
+                float _MinSaturation;
                 float _Cutoff;
                 float _Metallic;
                 float _Smoothness;
@@ -96,7 +102,13 @@ Shader "PhamKiemLuc/LongVuLit"
                 half a = tex.a;
                 clip(a - _Cutoff);
 
-                half3 vcol = lerp(half3(1, 1, 1), i.color.rgb, _VertexColorStrength) * _Brighten;
+                half3 vc = i.color.rgb;
+                // Hai cánh có màu đỉnh khác nhau (một cánh xanh đồng nhất, một cánh vàng-xanh-cam): ép cùng một tông (giữ độ sáng/đậm tương đối)
+                half3 hsv = RgbToHsv(vc);
+                hsv.x = _HueTarget;
+                hsv.y = max(hsv.y, _MinSaturation);
+                vc = lerp(vc, HsvToRgb(hsv), _HueLock);
+                half3 vcol = lerp(half3(1, 1, 1), vc, _VertexColorStrength) * _Brighten;
 
                 SurfaceData s = (SurfaceData)0;
                 s.albedo = vcol * _BaseColor.rgb;
