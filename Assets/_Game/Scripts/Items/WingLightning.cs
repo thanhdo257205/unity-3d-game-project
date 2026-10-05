@@ -121,7 +121,10 @@ public class WingLightning : MonoBehaviour
     [SerializeField, Min(0.1f)] private float trailLengthCruise = 1.5f;
 
     [Tooltip("Chiều dài vệt khi tăng tốc (mét), sáng.")]
-    [SerializeField, Min(0.1f)] private float trailLengthBoost = 4.5f;
+    [SerializeField, Min(0.1f)] private float trailLengthBoost = 3f;
+
+    [Tooltip("Độ đậm tối đa của dải lửa ở đầu vệt khi tăng tốc (0-1; 0.5 = nhìn xuyên qua được, thấy sợi bên trong). Bay thường nhạt hơn. Vệt mờ nhanh về phía đuôi.")]
+    [SerializeField, Range(0.05f, 1f)] private float trailMaxAlpha = 0.5f;
 
     [Tooltip("Bề rộng dải lửa ở đầu cánh (mét), thuôn nhọn dần về 0 ở đuôi.")]
     [SerializeField, Min(0.01f)] private float trailWidth = 0.2f;
@@ -766,7 +769,7 @@ public class WingLightning : MonoBehaviour
         bool trailOn = flying && speed > 3f;
         float length = Mathf.Lerp(trailLengthCruise, trailLengthBoost, boost01);
         float tTime = Mathf.Clamp(length / Mathf.Max(speed, 4f), 0.05f, 0.45f);
-        float alpha = Mathf.Lerp(0.35f, 1f, boost01);
+        float alpha = trailMaxAlpha * Mathf.Lerp(0.6f, 1f, boost01);
         Vector3 back = speed > 1f ? -flightVelocity.normalized : -transform.forward;
         for (int s = 0; s < 2; s++)
         {
@@ -799,10 +802,12 @@ public class WingLightning : MonoBehaviour
     {
         if (gradFire == null) { gradFire = new Gradient(); gradBlue = new Gradient(); }
         // Đầu vệt (sát đầu cánh) nóng và đậm nhất, mờ dần về đuôi; alpha về 0 hẳn ở đuôi nên đuôi nhọn, không có đầu cụt
-        gradFire.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.9f, 0.5f), 0f), new GradientColorKey(new Color(1f, 0.5f, 0.1f), 0.4f), new GradientColorKey(new Color(0.9f, 0.25f, 0.03f), 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(alpha * 0.8f, 0.35f), new GradientAlphaKey(alpha * 0.3f, 0.7f), new GradientAlphaKey(0f, 1f) });
+        // Vàng kim sáng, gần trắng ở đầu, vàng kim ở giữa, vàng đậm ở đuôi (không đỏ/cam). Độ đậm tối đa = alpha (0.5) ở đầu, mờ nhanh: còn 45% ở 25% chiều dài, 12% ở nửa vệt, hết ở 80%.
+        gradFire.SetKeys(new[] { new GradientColorKey(new Color(1f, 0.98f, 0.85f), 0f), new GradientColorKey(new Color(1f, 0.85f, 0.45f), 0.3f), new GradientColorKey(new Color(1f, 0.72f, 0.2f), 1f) },
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.06f), new GradientAlphaKey(alpha * 0.45f, 0.25f), new GradientAlphaKey(alpha * 0.12f, 0.5f), new GradientAlphaKey(0f, 0.8f), new GradientAlphaKey(0f, 1f) });
+        float ra = Mathf.Min(1f, alpha * 1.6f);
         gradBlue.SetKeys(new[] { new GradientColorKey(new Color(0.85f, 1f, 1f), 0f), new GradientColorKey(new Color(0.2f, 0.8f, 1f), 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(alpha, 0.07f), new GradientAlphaKey(alpha * 0.6f, 0.5f), new GradientAlphaKey(0f, 1f) });
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(ra, 0.07f), new GradientAlphaKey(ra * 0.6f, 0.5f), new GradientAlphaKey(0f, 1f) });
     }
 
     private void UpdateTrailTransforms()

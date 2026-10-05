@@ -162,9 +162,13 @@ public static class WingLightningBuilder
                 float u = (x + 0.5f) / w;
                 // Ba tầng sợi: u đổi chậm (chu kỳ 4, 8, 16 ô dọc), v đổi nhanh (10, 22, 46 ô ngang)
                 float n = PeriodicNoise(u * 4f, v * 10f, 4, 1) * 0.5f + PeriodicNoise(u * 8f, v * 22f, 8, 2) * 0.32f + PeriodicNoise(u * 16f, v * 46f, 16, 3) * 0.18f;
-                float fibre = Mathf.Clamp01((n - 0.28f) / 0.5f);
-                float a = Mathf.Clamp01((0.08f + fibre * 1.4f) * profile);
-                t.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                // Sợi rõ, khe giữa các sợi trong suốt hẳn (nhìn xuyên qua được)
+                float fibre = Mathf.Clamp01((n - 0.40f) / 0.28f);
+                fibre = fibre * fibre * (3f - 2f * fibre);
+                float a = Mathf.Clamp01(fibre * 1.15f * profile);
+                // Giữa dải gần trắng, ra mép chuyển vàng kim
+                Color c = Color.Lerp(new Color(1f, 0.72f, 0.3f), Color.white, Mathf.Pow(edge, 1.4f));
+                t.SetPixel(x, y, new Color(c.r, c.g, c.b, a));
             }
         }
         t.Apply();
@@ -230,7 +234,7 @@ public static class WingLightningBuilder
         Material mGlow = MakeRoundMat("VFX_QuangLungSet", true, new Color(1.6f, 1.25f, 0.5f), new Color(0.2f, 0.9f, 1.8f), 0.3f, 1.6f, 2995);
         Material mDark = MakeRoundMat("VFX_MangToiSet", false, new Color(0.02f, 0.05f, 0.12f), new Color(0.02f, 0.05f, 0.12f), 0.3f, 0.6f, 2990);
         // dải lửa: sợi dài, cam HDR; dải xanh mảnh dùng ảnh tia xanh
-        Material mFire = MakeMat("VFX_DaiLua", soi, new Color(1.5f, 0.6f, 0.08f, 1f), false);
+        Material mFire = MakeMat("VFX_DaiLua", soi, new Color(1.7f, 1.45f, 1.05f, 1f), false);
         Material mRib = MakeMat("VFX_DaiXanh", xanh, new Color(0.6f, 1.5f, 2.1f, 1f));
         Material mSpark = MakeMat("VFX_TiaLuaCanh", dot, new Color(1f, 1f, 1f, 1f));
         AssetDatabase.SaveAssets();
