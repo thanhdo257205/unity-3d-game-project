@@ -227,6 +227,9 @@ public class PlayerAnimator : MonoBehaviour
         kickStart = Time.time;
     }
 
+    /// <summary>Keep the existing casting pose while holding a ward or gathering a relic spell.</summary>
+    public void HoldSkillPose() { RequestShootPose(); lastShootActivity = Time.time; }
+
     /// <summary>
     /// SwordSwarm gọi ngay khi bấm bắn: đưa tay vào tư thế phóng (khung 'shootKeyTime' của clip PhongKiem2)
     /// và trả về số giây còn lại cho tới khi tay tới nơi. Tay đã ở đó rồi thì trả về 0 (bắn ngay, không lấy đà lại).
@@ -280,6 +283,16 @@ public class PlayerAnimator : MonoBehaviour
     /// <summary>Theo dõi tư thế phóng: tới nơi thì giữ, ngừng bắn đủ lâu thì thu tay về, bị anim khác (bị đánh, niệm quyết) chen vào thì thôi.</summary>
     private void UpdateShootPhase()
     {
+        // Keep the casting hand raised while the released swords are still being guided.
+        // Wait for hit/melee/cast animations to finish before reclaiming the upper-body layer.
+        if (upperLayer >= 0 && swarm != null && swarm.HasPursuingSwords
+            && (stats == null || stats.IsAlive) && (melee == null || !melee.IsAttacking))
+        {
+            lastShootActivity = Time.time;
+            AnimatorStateInfo upper = animator.GetCurrentAnimatorStateInfo(upperLayer);
+            if (phase == ShootPhase.None && upper.shortNameHash == EmptyUpperStateId
+                && !animator.IsInTransition(upperLayer)) RequestShootPose();
+        }
         if (phase == ShootPhase.None || upperLayer < 0) return;
 
         // Anim khác chiếm lớp thân trên (Bị đánh, Niệm quyết...) thì không còn ở tư thế phóng nữa

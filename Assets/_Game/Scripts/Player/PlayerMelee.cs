@@ -116,10 +116,10 @@ public class PlayerMelee : MonoBehaviour
     [Tooltip("Ba nhát chém: Chem1 (18 sát thương), Chem2 (20), Chem3 (32, đẩy lùi 2m). Thời gian thật mỗi nhát 0.5 / 0.6 / 0.9 giây, trúng đòn sau 0.25 / 0.38 / 0.54 giây. Đổi clip chém: chỉ sửa 3 'Mốc trong clip' của từng nhát, không đụng sát thương và thời gian thật.")]
     [SerializeField] private Step[] swordSteps =
     {
-        // Đo từ chuyển động tay phải thật của 3 clip Great Sword Slash / Thrust Slash (Mixamo)
-        new Step { stateName = "Chem1", damage = 18f, clipStart = 0.30f, clipHit = 0.62f, clipEnd = 0.92f, duration = 0.5f, hitTime = 0.25f, lungeDistance = 0.3f },
-        new Step { stateName = "Chem2", damage = 20f, clipStart = 0.30f, clipHit = 0.73f, clipEnd = 1.00f, duration = 0.6f, hitTime = 0.38f, lungeDistance = 0.3f },
-        new Step { stateName = "Chem3", damage = 32f, clipStart = 0.20f, clipHit = 0.76f, clipEnd = 1.15f, duration = 0.9f, hitTime = 0.54f, lungeDistance = 0.55f, knockback = 2f, useGripOverride = true, gripPosition = new Vector3(0f, 0.08f, 0.03f), gripEuler = new Vector3(2.86f, 59.33f, 0f) },
+        // Sword and Shield Pack: slash, slash (3), slash (4), cầm kiếm một tay.
+        new Step { stateName = "Chem1", damage = 18f, clipStart = 0.30f, clipHit = 0.60f, clipEnd = 0.95f, duration = 0.5f, hitTime = 0.25f, lungeDistance = 0.3f },
+        new Step { stateName = "Chem2", damage = 20f, clipStart = 0.50f, clipHit = 0.83f, clipEnd = 1.23f, duration = 0.6f, hitTime = 0.38f, lungeDistance = 0.3f },
+        new Step { stateName = "Chem3", damage = 32f, clipStart = 0.93f, clipHit = 1.30f, clipEnd = 1.63f, duration = 0.9f, hitTime = 0.54f, lungeDistance = 0.55f, knockback = 2f },
     };
 
     [Tooltip("Tầm chém của kiếm phía trước mặt (mét).")]
@@ -325,13 +325,16 @@ public class PlayerMelee : MonoBehaviour
         if (animator != null)
         {
             animator.SetFloat(AtkSpeedId, speed);
+            // Fixed-time offset is scaled by the state's speed parameter.
+            // Sword clipStart is a position in the source clip, independent of attack speed.
+            float clipOffset = sword ? s.clipStart / speed : s.clipStart;
             if (attackInFlight)
             {
                 // Đang bay: chỉ tay chém (lớp thân trên), thân dưới giữ dáng bay
                 int layer = animator.GetLayerIndex(upperLayerName);
-                animator.CrossFadeInFixedTime(s.stateName + "_Bay", chained ? blendTime : 0.08f, layer, s.clipStart);
+                animator.CrossFadeInFixedTime(s.stateName + "_Bay", chained ? blendTime : 0.08f, layer, clipOffset);
             }
-            else animator.CrossFadeInFixedTime(s.stateName, chained ? blendTime : 0.08f, 0, s.clipStart);
+            else animator.CrossFadeInFixedTime(s.stateName, chained ? blendTime : 0.08f, 0, clipOffset);
         }
 
         // Bước nhẹ tới trước theo hướng camera đang nhìn (đang bay thì không)

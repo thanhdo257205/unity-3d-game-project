@@ -1,14 +1,25 @@
 using UnityEngine;
 using UnityEngine.AI;
+using System.Collections.Generic;
 
 /// <summary>
-/// Tà tu Luyện Khí: dùng lại mô hình nhân vật (áo đỏ sẫm), 2 phi kiếm đỏ bay quanh người.
-/// Giữ khoảng cách 8-12m với người chơi, đi ngang né tránh, mỗi 2 giây phóng một phi kiếm,
+/// Tà tu: mô hình hiện tại, kiếm luân vàng sau lưng; một phần kiếm hộ thân, phần còn lại truy kích.
+/// Giữ khoảng cách 8-12m với người chơi, đi ngang né tránh và phóng kiếm theo nhịp,
 /// thỉnh thoảng ném Hỏa Cầu. Còn dưới 20% máu thì bỏ chạy bằng tốc độ chạy, 8 giây sau quay lại.
 /// Bị quyền cước đánh trúng thì loạng choạng (anim Bị Đánh) và ngắt đòn đang ra.
 /// </summary>
 public class TaTu : EnemyBase
 {
+    [Header("Đấu phi kiếm: kiếm hộ thân")]
+    [SerializeField] private bool swordDefense = true;
+    [SerializeField, Min(0)] private int defenseReserve = 2;
+    [SerializeField, Min(1f)] private float guardDetectRange = 10f;
+    [SerializeField, Min(0.5f)] private float guardDistance = 2f;
+    public int BlocksMade { get; private set; }
+    public IReadOnlyList<EnemyBlade> Blades => blades;
+    private readonly Dictionary<FlyingSword, EnemyBlade> guardAssignments = new Dictionary<FlyingSword, EnemyBlade>();
+    private readonly List<FlyingSword> expiredGuards = new List<FlyingSword>();
+
     [Header("Tham chiếu")]
     [Tooltip("Animator của mô hình (đối tượng con NhanVat_Model). Để trống thì tự tìm.")]
     [SerializeField] private Animator animator;
@@ -17,7 +28,7 @@ public class TaTu : EnemyBase
     [SerializeField] private EnemyBlade bladePrefab;
 
     [Tooltip("Số phi kiếm đỏ bay quanh người.")]
-    [SerializeField, Min(1)] private int bladeCount = 2;
+    [SerializeField, Min(1)] private int bladeCount = 8;
 
     [Tooltip("Prefab Hỏa Cầu (quả cầu lửa, có script EnemyOrb).")]
     [SerializeField] private EnemyOrb fireballPrefab;
@@ -165,6 +176,78 @@ public class TaTu : EnemyBase
     protected override void OnDisable()
     {
         base.OnDisable();
+        guardAssignments.Clear();
+        if (blades != null)
+            for (int i = 0; i < blades.Length; i++) if (blades[i] != null) blades[i].gameObject.SetActive(false);
+    }
+
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        if (blades != null && IsAlive)
+            for (int i = 0; i < blades.Length; i++)
+                if (blades[i] != null) { blades[i].gameObject.SetActive(true); blades[i].ResetToOrbit(); }
+    }
+
+    private void LateUpdate()
+    {
+        if (!swordDefense || !AIEnabled || !IsAlive || State == EnemyState.Staggered || blades == null) return;
+        expiredGuards.Clear();
+        foreach (var pair in guardAssignments)
+            if (pair.Key == null || !pair.Key.IsAttacking || pair.Value == null || !pair.Value.IsGuarding)
+            {
+                if (pair.Value != null) pair.Value.ClearGuard();
+                expiredGuards.Add(pair.Key);
+            }
+        for (int i = 0; i < expiredGuards.Count; i++) guardAssignments.Remove(expiredGuards[i]);
+        Vector3 center = damageable.AimPoint;
+        for (int i = 0; i < FlyingSword.All.Count; i++)
+        {
+            FlyingSword incoming = FlyingSword.All[i];
+            if (!incoming.IsAttacking || !incoming.IsApproaching(center)
+                || (incoming.PursuitTarget != null && incoming.PursuitTarget != damageable)
+                || (incoming.transform.position - center).sqrMagnitude > guardDetectRange * guardDetectRange) continue;
+            EnemyBlade guard;
+            if (!guardAssignments.TryGetValue(incoming, out guard))
+            {
+                // Leave the remaining blades free to counterattack under sustained pressure.
+                int activeGuards = 0;
+                for (int k = 0; k < blades.Length; k++)
+                    if (blades[k] != null && blades[k].IsGuarding) activeGuards++;
+                if (activeGuards >= Mathf.Min(defenseReserve, blades.Length)) continue;
+                guard = null;
+                float best = float.PositiveInfinity;
+                for (int k = 0; k < blades.Length; k++)
+                {
+                    EnemyBlade candidate = blades[k];
+                    if (candidate == null || !candidate.CanGuard || candidate.IsGuarding) continue;
+                    float distance = (candidate.Position - incoming.transform.position).sqrMagnitude;
+                    if (distance < best) { guard = candidate; best = distance; }
+                }
+                if (guard == null) continue;
+                guardAssignments[incoming] = guard;
+            }
+            Vector3 dir = (incoming.transform.position - center).normalized;
+            guard.SetGuard(center + dir * guardDistance,
+                Quaternion.LookRotation(dir, Mathf.Abs(dir.y) > 0.95f ? Vector3.forward : Vector3.up), 0.35f);
+        }
+    }
+
+    public bool TryBlockSword(FlyingSword incoming, Vector3 from, Vector3 to)
+    {
+        if (!swordDefense || !AIEnabled || !isActiveAndEnabled || !IsAlive
+            || State == EnemyState.Staggered || blades == null) return false;
+        for (int i = 0; i < blades.Length; i++)
+        {
+            if (blades[i] == null || !blades[i].TryBlock(incoming, from, to)) continue;
+            BlocksMade++;
+            EnemyBlade assigned;
+            if (guardAssignments.TryGetValue(incoming, out assigned) && assigned != null)
+                assigned.ClearGuard();
+            guardAssignments.Remove(incoming);
+            return true;
+        }
+        return false;
     }
 
     private void OnDestroy()
@@ -270,6 +353,9 @@ public class TaTu : EnemyBase
     private EnemyBlade FreeBlade()
     {
         if (blades == null) return null;
+        int available = 0;
+        for (int i = 0; i < blades.Length; i++) if (blades[i] != null && blades[i].CanGuard) available++;
+        if (available <= Mathf.Min(defenseReserve, Mathf.Max(0, blades.Length - 1))) return null;
         for (int i = 0; i < blades.Length; i++)
             if (blades[i] != null && blades[i].IsAvailable) return blades[i];
         return null;
@@ -291,6 +377,7 @@ public class TaTu : EnemyBase
 
     private void UpdateCast()
     {
+        if (!AIEnabled || !IsAlive || State == EnemyState.Staggered) return;
         if (pendingSwordAt > 0f && Time.time >= pendingSwordAt)
         {
             pendingSwordAt = -1f;
@@ -381,6 +468,9 @@ public class TaTu : EnemyBase
 
     protected override void CancelActions()
     {
+        guardAssignments.Clear();
+        if (blades != null)
+            for (int i = 0; i < blades.Length; i++) if (blades[i] != null) blades[i].ResetToOrbit();
         pendingSwordAt = -1f;
         pendingFireballAt = -1f;
         retractAt = -1f;
@@ -410,6 +500,7 @@ public class TaTu : EnemyBase
 
     protected override void OnRevivedExtra()
     {
+        BlocksMade = 0;
         CancelActions();
         poseHeld = false;
         hasFled = false;

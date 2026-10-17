@@ -17,12 +17,52 @@ public enum FormationType
 /// Ngự Kiếm Thuật: đàn phi kiếm của người chơi. Mặc định TẮT (không có kiếm nào). Phím Q bật (tốn pháp lực): các kiếm lần lượt
 /// bay ra từ túi trữ vật rồi xòe thành Kiếm Luân (bánh xe kiếm) sau lưng; đang bật thì tốn pháp lực mỗi giây và pháp lực không tự hồi; Q lần nữa thì kiếm bay về túi.
 /// Khi bật: chuột phải phóng một kiếm về tâm ngắm (giữ = bắn liên tiếp), Z/X đổi đội hình Kiếm Luân/Vòng,
-/// C vào đội hình Mũi tên rồi lao cả đàn vào mục tiêu gần tâm ngắm nhất rồi thu về, R gọi toàn bộ kiếm về.
+/// C vào Mũi tên rồi phóng loạt truy kích (giữ kiếm hộ thân); Tab khóa/bỏ khóa mục tiêu, R gọi toàn bộ kiếm về.
 /// Số kiếm tối đa lấy từ Thần thức (cảnh giới) trong PlayerStats. Mỗi hành động tốn pháp lực.
-/// Kiếm Luân tự chặn cầu từ phía sau/hai bên, Vòng chặn cầu chạm trúng kiếm. Kiếm đang bay đi thì không chặn được. Khi tắt thì không chặn gì.
+/// Các đội hình tự đưa kiếm hộ thân ra chặn đòn từ mọi hướng. Hai kiếm tấn công có thể va nhau giữa không trung.
 /// </summary>
 public class SwordSwarm : MonoBehaviour
 {
+    public static SwordSwarm Instance { get; private set; }
+    private readonly Dictionary<Damageable, SwordFlockPath> flockPaths = new Dictionary<Damageable, SwordFlockPath>();
+    private readonly SwordFlockPath untargetedFlockPath = new SwordFlockPath();
+    public SwordFlockPath GetFlockPath(Damageable target)
+    {
+        if (target == null) return untargetedFlockPath;
+        SwordFlockPath path;
+        if (!flockPaths.TryGetValue(target, out path))
+        {
+            path = new SwordFlockPath();
+            flockPaths.Add(target, path);
+        }
+        return path;
+    }
+    public Transform Owner => owner;
+    public Damageable LockedTarget { get; private set; }
+    public int BlocksMade { get; private set; }
+    private bool manaShortageReported;
+
+    [Header("Đấu phi kiếm: truy kích và phản đòn")]
+    [SerializeField] private bool pursuitEnabled = true;
+    [SerializeField, Min(1f)] private float pursuitSpeed = 26f;
+    [SerializeField, Min(30f)] private float pursuitTurnSpeed = 540f;
+    [SerializeField, Min(0f)] private float pursuitArc = 1.6f;
+    [SerializeField, Min(0.2f)] private float pursuitHitInterval = 0.9f;
+    [Tooltip("Tầm khóa mục tiêu mới; kiếm đã phóng vẫn đuổi tiếp khi đối thủ vượt tầm này.")]
+    [SerializeField, Min(1f)] private float pursuitRange = 65f;
+    [Tooltip("Giữ lại số kiếm này để phòng thủ ngay cả khi phóng loạt Mũi tên.")]
+    [SerializeField, Min(0)] private int defenseReserve = 4;
+    [Tooltip("Tự đưa kiếm ra chặn đòn từ mọi hướng, như trận đấu phi kiếm trong video tham chiếu.")]
+    [SerializeField] private bool omnidirectionalDefense = true;
+
+    public float PursuitSpeed => Mathf.Min(shotSpeed, pursuitSpeed);
+    public float PursuitTurnSpeed => pursuitTurnSpeed;
+    public float PursuitArc => pursuitArc;
+    public float PursuitHitInterval => pursuitHitInterval;
+
+    public void LockTarget(Damageable target) { LockedTarget = target != null && target.IsAlive ? target : null; }
+    private void OnDestroy() { if (Instance == this) Instance = null; }
+
     private const int MaxSwords = 100;
 
     [Header("Tham chiếu")]
@@ -277,8 +317,18 @@ public class SwordSwarm : MonoBehaviour
         {
             int n = 0;
             for (int i = 0; i < swords.Count; i++)
-                if (swords[i].Mode != SwordMode.Formation) n++;
+                if (swords[i].Mode != SwordMode.Formation || swords[i].HasPursuitCommand) n++;
             return n;
+        }
+    }
+
+    public bool HasPursuingSwords
+    {
+        get
+        {
+            for (int i = 0; i < swords.Count; i++)
+                if (swords[i].HasPursuitCommand) return true;
+            return false;
         }
     }
 
@@ -348,7 +398,7 @@ public class SwordSwarm : MonoBehaviour
         {
             int n = 0;
             for (int i = 0; i < swords.Count; i++)
-                if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike) n++;
+                if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike && !swords[i].HasPursuitCommand) n++;
             return n;
         }
     }
@@ -399,6 +449,7 @@ public class SwordSwarm : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         current = startFormation;
         isActive = false;
         if (owner == null) owner = transform;
@@ -434,6 +485,7 @@ public class SwordSwarm : MonoBehaviour
 
     private void OnPlayerRespawned()
     {
+        LockedTarget = null;
         pendingVolleyTime = -1f;
         SetActive(false, false);
     }
@@ -469,7 +521,7 @@ public class SwordSwarm : MonoBehaviour
         }
 
         // Đang bật Ngự Kiếm Thuật: tốn pháp lực mỗi giây (và pháp lực không tự hồi) = duy trì + đội hình Vòng + mỗi kiếm đang ở ngoài.
-        // Cạn pháp lực thì tự tắt, mọi kiếm (kể cả đang ở ngoài) bay về túi.
+        // Cạn pháp lực chỉ tự tắt khi không còn lệnh truy kích; kiếm đã phóng chỉ được thu bằng R.
         CurrentDrainPerSecond = 0f;
         if (alive && isActive && stats != null)
         {
@@ -479,9 +531,12 @@ public class SwordSwarm : MonoBehaviour
             CurrentDrainPerSecond = drain;
             if (drain > 0f && !stats.DrainMana(drain * Time.deltaTime))
             {
-                stats.ReportManaShortage();
-                SetActive(false, true);
+                if (!manaShortageReported) stats.ReportManaShortage();
+                manaShortageReported = true;
+                // An issued flight command is cancelled only by R. Mana still gates new launches.
+                if (!HasPursuingSwords) SetActive(false, true);
             }
+            else if (stats.Mana >= singleShotCost) manaShortageReported = false;
         }
 
         if (player != null) player.FaceCamera = alive && Time.time < aimUntil;
@@ -562,6 +617,8 @@ public class SwordSwarm : MonoBehaviour
 
         if (kb != null)
         {
+            if (isActive && Cursor.lockState == CursorLockMode.Locked && kb.tabKey.wasPressedThisFrame)
+                LockTarget(LockedTarget != null ? null : AimTarget);
             if (kb.qKey.wasPressedThisFrame) Toggle();
             if (isActive)
             {
@@ -617,8 +674,9 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Còn thanh kiếm nào rảnh (đứng trong đội hình, chưa hẹn lao) không.</summary>
     private bool HasFreeSword()
     {
+        if (ReadySwordCount <= Mathf.Min(defenseReserve, Mathf.Max(0, swords.Count - 1))) return false;
         for (int i = 0; i < swords.Count; i++)
-            if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike) return true;
+            if (swords[i].Mode == SwordMode.Formation && !swords[i].HasScheduledStrike && !swords[i].IsGuarding && !swords[i].HasPursuitCommand) return true;
         return false;
     }
 
@@ -641,7 +699,7 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Phím Q: bật nếu đang tắt (tốn pháp lực), tắt nếu đang bật. Không đủ pháp lực thì không bật và báo cảnh báo.</summary>
     public void Toggle()
     {
-        if (isActive) { SetActive(false, true); return; }
+        if (isActive) { if (!HasPursuingSwords) SetActive(false, true); return; }
         if (stats != null && !stats.IsAlive) return;
         if (stats != null && !stats.TrySpendMana(activationCost)) return;
         SetActive(true, true);
@@ -777,14 +835,15 @@ public class SwordSwarm : MonoBehaviour
         {
             FlyingSword s = swords[i];
             s.ClearGuard();
-            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike) continue;
+            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike && !s.HasPursuitCommand) continue;
             s.CancelAndBeginReturn(recallTime);
         }
     }
 
-    /// <summary>Phóng một thanh kiếm về tâm ngắm rồi tự quay về. Trả về false nếu không có kiếm rảnh hoặc không đủ pháp lực.</summary>
+    /// <summary>Phóng một kiếm giữ ngoài chiến trường tới khi R. Không đủ pháp lực thì không phóng thêm.</summary>
     public bool FireSingle()
     {
+        if (!isActive || (stats != null && !stats.IsAlive)) return false;
         FlyingSword s = PickShooter();
         if (s == null) return false;
 
@@ -794,11 +853,14 @@ public class SwordSwarm : MonoBehaviour
             return false;
         }
 
-        Vector3 end = AimTarget != null ? AimTarget.AimPoint : AimPoint;
+        Damageable target = LockedTarget != null ? LockedTarget : AimTarget;
+        Vector3 end = target != null ? target.AimPoint : AimPoint;
         Vector3 to = end - s.transform.position;
         Vector3 dir = to.sqrMagnitude > 0.0001f ? to.normalized : s.transform.forward;
         s.ClearGuard();
-        s.LaunchStrike(end + dir * shotOvershoot, shotSpeed, strikeDamage, shotReturnTime, singleHitIntent);
+        if (pursuitEnabled && target != null && target.IsAlive)
+            s.LaunchPursuit(target, PursuitSpeed, strikeDamage, shotReturnTime, singleHitIntent);
+        else s.LaunchStrike(end + dir * shotOvershoot, shotSpeed, strikeDamage, shotReturnTime, singleHitIntent);
 
         aimUntil = Mathf.Max(aimUntil, Time.time + aimHoldTime);
         StrikeFired?.Invoke();
@@ -806,26 +868,33 @@ public class SwordSwarm : MonoBehaviour
         return true;
     }
 
-    /// <summary>Lao cả đàn (các kiếm đang rảnh) vào mục tiêu gần tâm ngắm nhất, mỗi kiếm cách nhau một chút. Sau đó thu về. Tốn pháp lực theo số kiếm.</summary>
+    /// <summary>Phóng loạt truy kích có giữ kiếm dự trữ hộ thân. Tốn pháp lực theo số kiếm thực sự phóng.</summary>
     public bool FireVolley()
     {
+        if (!isActive || (stats != null && !stats.IsAlive)) return false;
         temp.Clear();
         for (int i = 0; i < swords.Count; i++)
         {
             FlyingSword s = swords[i];
-            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike) temp.Add(s);
+            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike && !s.IsGuarding && !s.HasPursuitCommand) temp.Add(s);
         }
+        int reserve = Mathf.Min(defenseReserve, Mathf.Max(0, swords.Count - 1));
+        int guards = 0;
+        for (int i = 0; i < swords.Count; i++) if (swords[i].IsGuarding) guards++;
+        int available = Mathf.Max(0, temp.Count - Mathf.Max(0, reserve - guards));
+        if (temp.Count > available) temp.RemoveRange(available, temp.Count - available);
         if (temp.Count == 0) return false;
 
         if (stats != null && !stats.TrySpendMana(volleyCostPerSword * temp.Count)) return false;
 
-        Damageable target = FindTarget(volleyLockAngle, volleyRange);
+        Damageable target = LockedTarget != null ? LockedTarget : FindTarget(volleyLockAngle, volleyRange);
         Vector3 aim = target != null ? target.AimPoint : AimPoint;
 
         for (int k = 0; k < temp.Count; k++)
         {
             temp[k].ClearGuard();
-            temp[k].ScheduleStrike(Time.time + k * volleyInterval, aim, volleyOvershoot, volleySpeed, volleyDamage, volleyReturnTime, volleyHitIntent);
+            temp[k].ScheduleStrike(Time.time + k * volleyInterval, aim, volleyOvershoot, volleySpeed, volleyDamage, volleyReturnTime, volleyHitIntent,
+                pursuitEnabled ? target : null);
         }
 
         aimUntil = Mathf.Max(aimUntil, Time.time + temp.Count * volleyInterval + aimHoldTime);
@@ -854,7 +923,7 @@ public class SwordSwarm : MonoBehaviour
     {
         List<IEnemyProjectile> orbs = EnemyProjectiles.All;
         if (orbs.Count == 0 || owner == null || !isActive) return;   // Ngự Kiếm Thuật tắt: không chặn đạn
-        if (current == FormationType.Arrow) return;
+        if (current == FormationType.Arrow && !omnidirectionalDefense) return;
 
         Vector3 center = AnchorPosition;
         for (int o = orbs.Count - 1; o >= 0; o--)
@@ -863,9 +932,22 @@ public class SwordSwarm : MonoBehaviour
             if (orb == null || orb.IsDone) continue;
             Vector3 op = orb.Position;
 
-            if (current == FormationType.Wheel)
+            if (omnidirectionalDefense || current == FormationType.Wheel)
             {
-                if (!InRearArc(op)) continue;   // cầu từ phía trước: không chặn
+                if (!omnidirectionalDefense && !InRearArc(op)) continue;
+                // Refresh moving threats, and release assignments whose guard was fired/recalled.
+                FlyingSword assigned = null;
+                for (int i = 0; i < swords.Count; i++)
+                    if (swords[i].IsGuarding && swords[i].GuardedProjectile == orb) { assigned = swords[i]; break; }
+                if (assigned != null)
+                {
+                    Vector3 direction = (op - center).normalized;
+                    assigned.SetGuard(center + direction * guardDistance,
+                        Quaternion.LookRotation(direction, Mathf.Abs(direction.y) > 0.95f ? Vector3.forward : Vector3.up),
+                        guardHoldTime, guardSettleTime, orb);
+                    orb.HasGuard = true;
+                }
+                else orb.HasGuard = false;
                 if (!orb.HasGuard && orb.IsApproaching(center) && (op - center).sqrMagnitude < guardDetectRange * guardDetectRange)
                     AssignGuard(orb, center);
             }
@@ -873,7 +955,7 @@ public class SwordSwarm : MonoBehaviour
             for (int i = 0; i < swords.Count; i++)
             {
                 FlyingSword s = swords[i];
-                if (s.Mode != SwordMode.Formation || s.HasScheduledStrike) continue;
+                if (s.Mode != SwordMode.Formation || s.HasScheduledStrike || s.HasPursuitCommand) continue;
                 Vector3 closest;
                 if (s.OverlapsSphere(op, orb.Radius, out closest))
                 {
@@ -895,24 +977,44 @@ public class SwordSwarm : MonoBehaviour
         for (int i = 0; i < swords.Count; i++)
         {
             FlyingSword s = swords[i];
-            if (s.Mode != SwordMode.Formation || s.HasScheduledStrike || s.IsGuarding) continue;
+            if (s.Mode != SwordMode.Formation || s.HasScheduledStrike || s.IsGuarding || s.HasPursuitCommand) continue;
             float d = (s.transform.position - guardPoint).sqrMagnitude;
             if (d < bestDist) { bestDist = d; best = s; }
         }
         if (best == null) return;   // hết kiếm rảnh: lưng trống
 
         Vector3 up = Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.95f ? Vector3.forward : Vector3.up;
-        best.SetGuard(guardPoint, Quaternion.LookRotation(dir, up), guardHoldTime, guardSettleTime);
+        best.SetGuard(guardPoint, Quaternion.LookRotation(dir, up), guardHoldTime, guardSettleTime, orb);
         orb.HasGuard = true;
     }
 
     /// <summary>Cầu bị kiếm chặn: tia lửa, kiếm rung nhẹ, hủy cầu.</summary>
     private void BlockOrb(IEnemyProjectile orb, FlyingSword sword, Vector3 point)
     {
+        BlocksMade++;
         orb.Block();
         sword.ClearGuard();
         sword.Shake(blockShake, blockShakeTime);
+        sword.BeginReturn(guardSettleTime);
         EmitBlockSparks(point, -orb.Direction);   // tia lửa bắn ngược về phía cầu bay tới
+    }
+
+    /// <summary>Resolve an actual swept collision before an enemy projectile can damage the player.</summary>
+    public bool TryBlockIncoming(IEnemyProjectile projectile, Vector3 from, Vector3 to)
+    {
+        if (!isActiveAndEnabled || !isActive || !defenseEnabled || projectile.IsDone) return false;
+        for (int i = 0; i < swords.Count; i++)
+        {
+            FlyingSword s = swords[i];
+            if (s.Mode != SwordMode.Formation || s.HasScheduledStrike || s.HasPursuitCommand) continue;
+            if (!omnidirectionalDefense && (current == FormationType.Arrow
+                || (current == FormationType.Wheel && !InRearArc(from)))) continue;
+            Vector3 contact;
+            if (!s.SweptOverlaps(from, to, projectile.Radius, out contact)) continue;
+            BlockOrb(projectile, s, contact);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>Phát tia lửa tại điểm chặn.</summary>
@@ -974,11 +1076,12 @@ public class SwordSwarm : MonoBehaviour
     private FlyingSword PickShooter()
     {
         int n = swords.Count;
+        if (ReadySwordCount <= Mathf.Min(defenseReserve, Mathf.Max(0, n - 1))) return null;
         for (int k = 0; k < n; k++)
         {
             int idx = (nextShooter + k) % n;
             FlyingSword s = swords[idx];
-            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike)
+            if (s.Mode == SwordMode.Formation && !s.HasScheduledStrike && !s.IsGuarding && !s.HasPursuitCommand)
             {
                 nextShooter = (idx + 1) % n;
                 return s;
@@ -996,6 +1099,8 @@ public class SwordSwarm : MonoBehaviour
     /// <summary>Bắn tia từ giữa màn hình để biết điểm ngắm, và tìm mục tiêu được hỗ trợ ngắm.</summary>
     private void UpdateAim()
     {
+        if (LockedTarget != null && (!LockedTarget.IsAlive || !LockedTarget.isActiveAndEnabled
+            || (LockedTarget.AimPoint - AnchorPosition).sqrMagnitude > pursuitRange * pursuitRange)) LockedTarget = null;
         Camera cam = GetCamera();
         if (cam == null) return;
 
@@ -1017,7 +1122,7 @@ public class SwordSwarm : MonoBehaviour
         }
 
         AimPoint = point;
-        AimTarget = FindTarget(aimAssistAngle, aimRange);
+        AimTarget = LockedTarget != null ? LockedTarget : FindTarget(aimAssistAngle, aimRange);
     }
 
     /// <summary>Tìm Damageable còn sống nằm gần tâm ngắm nhất, trong góc và tầm cho phép.</summary>
@@ -1042,9 +1147,28 @@ public class SwordSwarm : MonoBehaviour
             float angle = Vector3.Angle(fwd, v);
             if (angle <= bestAngle)
             {
+                if (SwordFlightMath.HitsEnvironment(camPos, d.AimPoint, 0.02f, owner)) continue;
                 bestAngle = angle;
                 best = d;
             }
+        }
+        return best;
+    }
+
+    /// <summary>Deployed swords accept a new locked enemy or seek another living enemy near the battle.</summary>
+    public Damageable FindPursuitTarget(Vector3 center, float range)
+    {
+        if (LockedTarget != null && LockedTarget.IsAlive && LockedTarget.isActiveAndEnabled) return LockedTarget;
+        Damageable best = null;
+        float distance = range * range;
+        foreach (Damageable candidate in Damageable.All)
+        {
+            if (!candidate.IsAlive || !candidate.isActiveAndEnabled
+                || candidate.GetComponentInParent<EnemyBase>() == null) continue;
+            float sqr = (candidate.AimPoint - center).sqrMagnitude;
+            if (sqr >= distance || SwordFlightMath.HitsEnvironment(center, candidate.AimPoint, 0.05f, owner)) continue;
+            best = candidate;
+            distance = sqr;
         }
         return best;
     }

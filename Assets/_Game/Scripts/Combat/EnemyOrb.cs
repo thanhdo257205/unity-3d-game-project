@@ -85,6 +85,10 @@ public class EnemyOrb : MonoBehaviour, IEnemyProjectile
         Vector3 from = transform.position;
         Vector3 to = from + velocity * Time.deltaTime;
 
+        if (ThanThongCombat.TryBlockProjectile(this, from, to)) return;
+        SwordSwarm swarm = SwordSwarm.Instance;
+        if (swarm != null && swarm.TryBlockIncoming(this, from, to)) return;
+
         if (stopAtObstacles && HitObstacle(from, to)) { transform.position = to; Dissolve(); return; }
         transform.position = to;
 

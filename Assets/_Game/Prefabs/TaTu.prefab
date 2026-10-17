@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 8672847062612696789}
   - component: {fileID: 6094393852193941622}
   - component: {fileID: 5818336888396785958}
+  - component: {fileID: 9089762964096694528}
   m_Layer: 0
   m_Name: TaTu
   m_TagString: Untagged
@@ -127,19 +128,23 @@ MonoBehaviour:
   stonesMin: 15
   stonesMax: 25
   lootHeight: 0.8
+  swordDefense: 1
+  defenseReserve: 2
+  guardDetectRange: 10
+  guardDistance: 2
   animator: {fileID: 4485392756271955815}
-  bladePrefab: {fileID: 8958281702052275949, guid: 1b6340cd26908b746922a431a8b1e015, type: 3}
-  bladeCount: 2
+  bladePrefab: {fileID: 8614449471140087678, guid: 938260348b9f14843bd78a6e831c2431, type: 3}
+  bladeCount: 8
   fireballPrefab: {fileID: 7712922078629359178, guid: f9ef99a809e3a964482d7ce7052fca94, type: 3}
   minDistance: 8
   maxDistance: 12
   strafeSpeed: 3
   strafeSwitchMin: 1.5
   strafeSwitchMax: 3.5
-  attackRange: 16
-  swordInterval: 2
-  swordDamage: 12
-  swordSpeed: 18
+  attackRange: 35
+  swordInterval: 0.65
+  swordDamage: 8
+  swordSpeed: 24
   fireballCooldownMin: 6
   fireballCooldownMax: 10
   fireballDamage: 15
@@ -156,6 +161,20 @@ MonoBehaviour:
   castHold: 0.5
   castKeyTime: 0.9
   castRetractSpeed: 2.5
+--- !u!114 &9089762964096694528
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8131705379912754829}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f37047c091da81c488f09faaab2ca6eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SwordArrayVisual
+  material: {fileID: 2100000, guid: d4e57e6a2d7e8a7408ee3e96ac5e54ec, type: 2}
+  tint: {r: 1, g: 0.56, b: 0.08, a: 1}
 --- !u!1001 &8022535308018156278
 PrefabInstance:
   m_ObjectHideFlags: 0

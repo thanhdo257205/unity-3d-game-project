@@ -12,8 +12,8 @@ using UnityEngine.UI;
 /// Bảng ADMIN (công cụ thử nghiệm) - bật/tắt bằng phím ` (dấu huyền, cạnh phím 1). Prefab Assets/_Game/UI/AdminPanel.prefab, dựng bằng menu
 /// Phàm Kiếm Lục → Bảng Admin → "Dựng prefab và đặt vào SanTap". Giao diện tự dựng bằng code lúc chạy (uGUI + TextMeshPro).
 /// - Mở bảng: hiện con trỏ chuột, camera ngừng xoay theo chuột, game vẫn chạy. Đóng: trả lại như cũ.
-/// - Cảnh giới (− / + / danh sách), 5 công tắc, các nút bấm một lần, thanh trượt tốc độ game, thông tin chỉ đọc.
-/// - Các hệ thống khác CHỈ hỏi qua thuộc tính tĩnh ở đây (MauVoHan, PhapLucVoHan, KhongHoiChieu, KeDichDungYen, MotDonHaGuc, TocDoGame),
+/// - Cảnh giới (− / + / danh sách), 6 công tắc, các nút bấm một lần, thanh trượt tốc độ game, thông tin chỉ đọc.
+/// - Các hệ thống khác CHỈ hỏi qua thuộc tính tĩnh ở đây (MauVoHan, MauDichVoHan, PhapLucVoHan, KhongHoiChieu, KeDichDungYen, MotDonHaGuc, TocDoGame),
 ///   không có logic admin rải rác trong PlayerController.
 /// - Trạng thái công tắc KHÔNG lưu giữa các lần chạy: mỗi lần Play đều bắt đầu tắt hết. Có công tắc bật thì chữ "ADMIN" màu cam hiện ở góc phải trên cả khi bảng đóng.
 /// </summary>
@@ -23,6 +23,9 @@ public class AdminPanel : MonoBehaviour
 
     /// <summary>Máu vô hạn: vẫn báo sát thương nhận vào nhưng máu không giảm (PlayerStats hỏi).</summary>
     public static bool MauVoHan { get; set; }
+
+    /// <summary>Kẻ địch vẫn phản ứng khi trúng đòn nhưng không mất máu; ưu tiên hơn Một đòn hạ gục.</summary>
+    public static bool MauDichVoHan { get; set; }
 
     /// <summary>Pháp lực vô hạn: mọi kỹ năng dùng được, thanh pháp lực luôn đầy (PlayerStats hỏi).</summary>
     public static bool PhapLucVoHan { get; set; }
@@ -48,7 +51,7 @@ public class AdminPanel : MonoBehaviour
     public static bool DangMo { get; private set; }
 
     /// <summary>Có công tắc nào đang bật (hoặc tốc độ game khác 1) không.</summary>
-    public static bool CoCongTacBat => MauVoHan || PhapLucVoHan || KhongHoiChieu || KeDichDungYen || MotDonHaGuc || !Mathf.Approximately(TocDoGame, 1f);
+    public static bool CoCongTacBat => MauVoHan || MauDichVoHan || PhapLucVoHan || KhongHoiChieu || KeDichDungYen || MotDonHaGuc || !Mathf.Approximately(TocDoGame, 1f);
 
     /// <summary>Bảng duy nhất trong scene.</summary>
     public static AdminPanel Instance { get; private set; }
@@ -56,7 +59,7 @@ public class AdminPanel : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
-        MauVoHan = PhapLucVoHan = KhongHoiChieu = MotDonHaGuc = false;
+        MauVoHan = MauDichVoHan = PhapLucVoHan = KhongHoiChieu = MotDonHaGuc = false;
         keDichDungYen = false;
         EnemyBase.AIEnabled = true;
         TocDoGame = 1f;
@@ -245,6 +248,7 @@ public class AdminPanel : MonoBehaviour
         // 2. Công tắc
         y = AddSection(panel, "Công tắc", y, pad, inner);
         y = AddToggle(panel, "Máu vô hạn", pad, y, inner, () => MauVoHan, v => MauVoHan = v);
+        y = AddToggle(panel, "Máu địch vô hạn", pad, y, inner, () => MauDichVoHan, v => MauDichVoHan = v);
         y = AddToggle(panel, "Pháp lực vô hạn", pad, y, inner, () => PhapLucVoHan, v => PhapLucVoHan = v);
         y = AddToggle(panel, "Không hồi chiêu", pad, y, inner, () => KhongHoiChieu, v => KhongHoiChieu = v);
         y = AddToggle(panel, "Kẻ địch đứng yên", pad, y, inner, () => KeDichDungYen, v => KeDichDungYen = v);

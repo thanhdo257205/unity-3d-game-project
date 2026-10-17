@@ -5,7 +5,7 @@ using UnityEngine;
 /// Vũ khí cầm tay của nhân vật. Chọn ô có vũ khí trên thanh ô đồ thì kiếm xuất hiện ở túi trữ vật bên hông trái,
 /// lóe sáng, bay một đường cong lên tay phải (có vệt sáng xanh) rồi gắn vào xương RightHand.
 /// Đổi sang ô khác thì kiếm bay ngược về túi rồi biến mất.
-/// Có hai tư thế cầm: lúc đứng/chạy ("Cầm thường") và lúc chém ("Cầm chém", hai tay nắm đốc).
+/// Có hai tư thế cầm: lúc đứng/chạy ("Cầm thường") và lúc chém ("Cầm chém", một tay).
 /// Mọi con số chỉnh trong Inspector.
 /// </summary>
 [DefaultExecutionOrder(40)]   // chạy sau Animator để bám đúng xương tay đã cập nhật
@@ -58,8 +58,8 @@ public class HeldWeapon : MonoBehaviour
     [Tooltip("Cầm thường (đứng, đi, chạy): chỉnh sao cho mũi kiếm không đâm xuống đất hay vào tà áo.")]
     [SerializeField] private GripPose carryPose = new GripPose { position = new Vector3(0f, 0.08f, 0.03f), euler = new Vector3(0f, 0f, 0f) };
 
-    [Tooltip("Cầm chém (lúc đang ra đòn, hai tay nắm đốc): chuôi nằm trong lòng bàn tay, lưỡi chĩa theo hướng chém.")]
-    [SerializeField] private GripPose slashPose = new GripPose { position = new Vector3(0f, 0.08f, 0.03f), euler = new Vector3(0f, 0f, 0f) };
+    [Tooltip("Cầm chém một tay (Sword and Shield Pack): chuôi nằm trong lòng bàn tay phải, lưỡi chĩa theo hướng chém.")]
+    [SerializeField] private GripPose slashPose = new GripPose { position = new Vector3(0f, 0.08f, 0.03f), euler = new Vector3(0f, 180f, 90f) };
 
     [Tooltip("Thời gian chuyển giữa cầm thường và cầm chém (giây).")]
     [SerializeField, Min(0.01f)] private float poseBlendTime = 0.12f;

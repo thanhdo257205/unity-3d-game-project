@@ -31,11 +31,11 @@ public class WingLightning : MonoBehaviour
     [SerializeField, Min(0.01f)] private float levelSmoothTime = 0.25f;
 
     [Header("Độ sáng lõi (HDR, để Bloom bắt rõ)")]
-    [Tooltip("Độ sáng LÕI tia lúc thường (nhân vào ảnh tia; lớp ngoài tự sáng bằng khoảng 0.22 lần số này). Thử 8-12.")]
-    [SerializeField, Min(0.1f)] private float coreHdr = 8f;
+    [Tooltip("Độ sáng LÕI tia lúc thường (nhân vào ảnh tia; lớp ngoài tự sáng bằng khoảng 0.22 lần số này). Mặc định dịu để không lóa khi có Bloom.")]
+    [SerializeField, Min(0.1f)] private float coreHdr = 2.4f;
 
     [Tooltip("Độ sáng LÕI tia lúc bùng.")]
-    [SerializeField, Min(0.1f)] private float coreHdrBurst = 10f;
+    [SerializeField, Min(0.1f)] private float coreHdrBurst = 3.2f;
 
     [Header("Độ dày tia")]
     [Tooltip("Bề ngang của LÕI hai tia chính dọc cánh (mét), ở cường độ 1. Lớp ngoài rộng gấp 4 lần số này (tự tính). Nên 0.015-0.03.")]
@@ -94,7 +94,7 @@ public class WingLightning : MonoBehaviour
     [SerializeField, Min(0.5f)] private float glowSize = 3.6f;
 
     [Tooltip("Độ đậm quầng lúc thường (rất nhạt) và lúc bùng.")]
-    [SerializeField] private Vector2 glowAlpha = new Vector2(0.07f, 0.55f);
+    [SerializeField] private Vector2 glowAlpha = new Vector2(0.03f, 0.18f);
 
     [Tooltip("Quầng đặt xa hơn nhân vật bấy nhiêu mét theo hướng ra xa camera, để nằm sau người, không che.")]
     [SerializeField, Min(0.3f)] private float glowDistance = 1.2f;
@@ -111,7 +111,7 @@ public class WingLightning : MonoBehaviour
 
     [Header("Hai đèn (vàng - xanh)")]
     [Tooltip("Độ sáng mỗi đèn lúc bùng ở cường độ 1 (yếu). Đèn chỉ chiếu mặt đất/môi trường, không chiếu nhân vật nên không nhuộm màu người.")]
-    [SerializeField, Min(0f)] private float lightPeak = 1.3f;
+    [SerializeField, Min(0f)] private float lightPeak = 0.5f;
 
     [Tooltip("Tầm chiếu của đèn (mét).")]
     [SerializeField, Min(0.5f)] private float lightRange = 4f;
@@ -121,13 +121,13 @@ public class WingLightning : MonoBehaviour
     [SerializeField, Min(0.1f)] private float trailLengthCruise = 1.5f;
 
     [Tooltip("Chiều dài vệt khi tăng tốc (mét), sáng.")]
-    [SerializeField, Min(0.1f)] private float trailLengthBoost = 3f;
+    [SerializeField, Min(0.1f)] private float trailLengthBoost = 6f;
 
     [Tooltip("Độ đậm tối đa của dải lửa ở đầu vệt khi tăng tốc (0-1; 0.5 = nhìn xuyên qua được, thấy sợi bên trong). Bay thường nhạt hơn. Vệt mờ nhanh về phía đuôi.")]
-    [SerializeField, Range(0.05f, 1f)] private float trailMaxAlpha = 0.5f;
+    [SerializeField, Range(0.05f, 1f)] private float trailMaxAlpha = 0.35f;
 
     [Tooltip("Bề rộng dải lửa ở đầu cánh (mét), thuôn nhọn dần về 0 ở đuôi.")]
-    [SerializeField, Min(0.01f)] private float trailWidth = 0.2f;
+    [SerializeField, Min(0.01f)] private float trailWidth = 0.14f;
 
     [Tooltip("Bề rộng dải xanh ở đầu cánh (mét), cũng thuôn về 0.")]
     [SerializeField, Min(0.01f)] private float ribbonWidth = 0.08f;

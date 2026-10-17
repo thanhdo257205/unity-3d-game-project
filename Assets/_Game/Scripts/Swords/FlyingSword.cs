@@ -17,12 +17,39 @@ public enum SwordMode
 /// Kiếm không tự cập nhật: SwordSwarm gọi <see cref="Tick"/> mỗi khung hình để mọi kiếm chạy đúng thứ tự.
 /// - Trong đội hình: bay tới vị trí đích bằng lò xo (mượt, hơi nảy), không dịch chuyển tức thời.
 /// - Mũi kiếm luôn quay theo hướng bay; khi đã yên vị thì theo hướng của đội hình (Kiếm Luân: chĩa ra ngoài).
-/// - Khi tấn công: lao thẳng tới điểm đích, chém trúng thì gây sát thương rồi bay về.
+/// - Khi có mục tiêu: cả đàn dùng chung đường lao thẳng và vòng lượn, bám theo mục tiêu.
+/// - Bị chặn/va kiếm thì ngắt sát thương ngắn rồi nối đàn; gặp vật cản không xuyên qua.
+/// - Không có mục tiêu thì phóng theo điểm ngắm.
 /// Quy ước mô hình: pivot ở giữa chuôi, mũi kiếm là trục +Z, mặt phẳng lưỡi vuông góc trục Y.
 /// </summary>
 [DisallowMultipleComponent]
 public class FlyingSword : MonoBehaviour
 {
+    public static readonly List<FlyingSword> All = new List<FlyingSword>();
+    public Damageable PursuitTarget => pursuitTarget;
+    public bool HasPursuitCommand => pursuing;
+    public int SuccessfulPasses { get; private set; }
+    public int Deflections { get; private set; }
+    public bool IsAttacking => Mode == SwordMode.Strike && !retiring
+        && Swarm != null && Swarm.isActiveAndEnabled && Swarm.IsActive;
+    public IEnemyProjectile GuardedProjectile { get; private set; }
+
+    private Damageable pursuitTarget;
+    private bool pursuitHadTarget;
+    private Vector3 combatCenter;
+    private bool pursuing;
+    private Damageable scheduledTarget;
+    private bool scheduledPursuit;
+    private TaTu pursuitDefender;
+    private float nextPassAt;
+    private Vector3 pursuitDirection;
+    private int flockSlot;
+    private SwordFlockPath flockPath;
+    private bool retiring;
+
+    private void OnEnable() { All.Add(this); }
+    private void OnDisable() { All.Remove(this); ClearGuard(); }
+
     /// <summary>Khoảng cách pivot - mũi của thanh Trúc Kiếm (mét); SwordSwarm dùng để tính bán kính vầng Kiếm Luân khi chưa có kiếm nào.</summary>
     public const float DefaultTipOffset = 0.87f;
 
@@ -124,6 +151,7 @@ public class FlyingSword : MonoBehaviour
     private Renderer modelRenderer;
     private Material solidMaterial;
     private Color baseEmission = Color.black;
+    private Color baseTint = Color.white;
     private MaterialPropertyBlock look;
     private float alpha = 1f;               // độ đậm hiện tại của thân kiếm (1 = đặc)
     private bool usingFadeMaterial;
@@ -187,6 +215,7 @@ public class FlyingSword : MonoBehaviour
         modelRenderer = model != null ? model.GetComponentInChildren<Renderer>() : null;
         if (modelRenderer == null) return;
         solidMaterial = modelRenderer.sharedMaterial;
+        if (solidMaterial != null && solidMaterial.HasProperty(BaseColorId)) baseTint = solidMaterial.GetColor(BaseColorId);
         if (solidMaterial != null && solidMaterial.HasProperty(EmissionColorId)) baseEmission = solidMaterial.GetColor(EmissionColorId);
         look = new MaterialPropertyBlock();
         alpha = Swarm != null ? Swarm.FormationOpacity : 1f;
@@ -216,9 +245,9 @@ public class FlyingSword : MonoBehaviour
             usingFadeMaterial = transparent;
             modelRenderer.sharedMaterial = transparent ? fadeMaterial : solidMaterial;
         }
-        look.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
+        look.SetColor(BaseColorId, new Color(baseTint.r, baseTint.g, baseTint.b, alpha));
         look.SetColor(EmissionColorId, baseEmission * boost);
-        modelRenderer.SetPropertyBlock(look);
+        modelRenderer.SetPropertyBlock(look, 0);
     }
 
     /// <summary>Báo đội hình vừa đổi: bỏ vận tốc cũ của chỗ đứng để không bị giật.</summary>
@@ -235,8 +264,10 @@ public class FlyingSword : MonoBehaviour
     }
 
     /// <summary>Hẹn giờ lao tới điểm aimPoint (kiếm vẫn đứng trong đội hình cho tới giờ).</summary>
-    public void ScheduleStrike(float launchTime, Vector3 aimPoint, float overshoot, float speed, float damage, float returnTime, float intentGain = 0f)
+    public void ScheduleStrike(float launchTime, Vector3 aimPoint, float overshoot, float speed, float damage, float returnTime, float intentGain = 0f, Damageable target = null)
     {
+        scheduledTarget = target;
+        scheduledPursuit = target != null;
         scheduled = true;
         scheduledTime = launchTime;
         scheduledAim = aimPoint;
@@ -250,15 +281,52 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Lao thẳng từ vị trí hiện tại tới điểm end với tốc độ speed. intentGain là Kiếm ý nhận được khi trúng.</summary>
     public void LaunchStrike(Vector3 end, float speed, float damage, float returnTime, float intentGain = 0f)
     {
+        pursuitTarget = null;
+        pursuitHadTarget = false;
+        pursuitDefender = null;
+        pursuing = true;
+        retiring = false;
+        scheduledPursuit = false;
         scheduled = false;
-        guarding = false;
+        ClearGuard();
         Mode = SwordMode.Strike;
+        combatCenter = end;
+        flockPath = null;
+        pursuitDirection = (end - transform.position).sqrMagnitude > 0.001f
+            ? (end - transform.position).normalized : transform.forward;
+        nextPassAt = Time.time;
         strikeEnd = end;
         strikeSpeed = speed;
         strikeDamage = damage;
         strikeIntent = intentGain;
         returnSettleTime = returnTime;
         hitTimes.Clear();
+    }
+
+    /// <summary>Keep pursuing through curved attack passes until the player explicitly recalls.</summary>
+    public void LaunchPursuit(Damageable target, float speed, float damage, float returnTime, float intentGain = 0f)
+    {
+        if (target == null || !target.IsAlive) return;
+        LaunchStrike(target.AimPoint, speed, damage, returnTime, intentGain);
+        JoinFlock(target, target.AimPoint);
+        pursuitTarget = target;
+        pursuitHadTarget = true;
+        pursuing = true;
+        pursuitDefender = target.GetComponent<TaTu>();
+        nextPassAt = Time.time;
+        SuccessfulPasses = 0;
+        pursuitDirection = (target.AimPoint - transform.position).normalized;
+        Velocity = pursuitDirection * strikeSpeed;
+    }
+
+    public bool IsApproaching(Vector3 point) => IsAttacking &&
+        Vector3.Dot(Velocity, point - transform.position) > 0f;
+
+    public bool SweptOverlaps(Vector3 from, Vector3 to, float radius, out Vector3 contact)
+    {
+        return SwordFlightMath.HitsBlade(from, to, radius,
+            transform.position + transform.forward * (tailOffset * LengthScale), Tip,
+            hitRadius * bodyScale, out contact);
     }
 
     /// <summary>Đang tạm rời đội hình để đón một quả cầu địch.</summary>
@@ -268,8 +336,10 @@ public class FlyingSword : MonoBehaviour
     public float HitRadius => hitRadius;
 
     /// <summary>Cho kiếm bay ra vị trí pos, mũi hướng theo rot, chờ tối đa hold giây để chắn cầu.</summary>
-    public void SetGuard(Vector3 pos, Quaternion rot, float hold, float settleTime)
+    public void SetGuard(Vector3 pos, Quaternion rot, float hold, float settleTime, IEnemyProjectile projectile = null)
     {
+        if (GuardedProjectile != projectile) ClearGuard();
+        GuardedProjectile = projectile;
         guarding = true;
         guardPosition = pos;
         guardRotation = rot;
@@ -280,6 +350,8 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Thôi đón cầu, về lại chỗ trong đội hình.</summary>
     public void ClearGuard()
     {
+        if (GuardedProjectile != null) GuardedProjectile.HasGuard = false;
+        GuardedProjectile = null;
         guarding = false;
     }
 
@@ -307,16 +379,45 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Bay về chỗ trong đội hình, mất khoảng settleTime giây để yên vị.</summary>
     public void BeginReturn(float settleTime)
     {
+        pursuing = false;
+        pursuitTarget = null;
+        pursuitDefender = null;
+        scheduledTarget = null;
+        scheduled = false;
+        ClearGuard();
         Mode = SwordMode.Return;
         returnSettleTime = settleTime;
         Velocity *= Swarm != null ? Swarm.ReturnVelocityKeep : 0.15f;
     }
 
+    /// <summary>A deflection interrupts this pass, but keeps the player's pursuit order alive.</summary>
+    public void Deflect(float settleTime)
+    {
+        Deflections++;
+        if (HasPursuitCommand && Swarm != null && Swarm.IsActive)
+        {
+            // Recoil at the battle, never fly home between attack passes.
+            ClearGuard();
+            Mode = SwordMode.Strike;
+            pursuing = true;
+            // A block pauses damage, but the blade stays in its file on the shared loop.
+            nextPassAt = Time.time + 0.55f;
+            Velocity = pursuitDirection * strikeSpeed;
+            return;
+        }
+        BeginReturn(settleTime);
+    }
+
     /// <summary>Bắt đầu bay về túi trữ vật rồi biến mất trong duration giây. Sau đó SwordSwarm gọi <see cref="TickDespawn"/> mỗi khung hình.</summary>
     public void BeginDespawn(float duration)
     {
+        retiring = true;
+        pursuing = false;
+        pursuitTarget = null;
+        pursuitDefender = null;
+        scheduledTarget = null;
         scheduled = false;
-        guarding = false;
+        ClearGuard();
         despawnDuration = Mathf.Max(0.05f, duration);
         despawnElapsed = 0f;
         despawnStart = transform.position;
@@ -346,6 +447,7 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Cập nhật một khung hình. Do SwordSwarm gọi.</summary>
     public void Tick(in SwordSlot slot, float dt)
     {
+        if (guarding && (!IsGuarding || (GuardedProjectile != null && GuardedProjectile.IsDone))) ClearGuard();
         Vector3 slotVelocity = Vector3.zero;
         if (hasLastSlot && dt > 0f)
             slotVelocity = Vector3.ClampMagnitude((slot.position - lastSlotPosition) / dt, 40f);
@@ -361,7 +463,7 @@ public class FlyingSword : MonoBehaviour
                 if (scheduled && Time.time >= scheduledTime)
                 {
                     BeginScheduledStrike();
-                    StepStrike(dt);
+                    if (Mode == SwordMode.Strike) StepStrike(dt);
                     break;
                 }
                 if (IsGuarding)
@@ -433,10 +535,20 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Đến giờ hẹn: tính điểm kết thúc xuyên qua mục tiêu rồi lao đi.</summary>
     private void BeginScheduledStrike()
     {
+        Damageable target = scheduledTarget;
+        if (scheduledPursuit && (target == null || !target.IsAlive || !target.isActiveAndEnabled))
+        {
+            scheduled = false;
+            scheduledTarget = null;
+            scheduledPursuit = false;
+            return;
+        }
         Vector3 to = scheduledAim - transform.position;
         float len = to.magnitude;
         Vector3 dir = len > 0.01f ? to / len : transform.forward;
-        LaunchStrike(scheduledAim + dir * scheduledOvershoot, scheduledSpeed, scheduledDamage, scheduledReturnTime, scheduledIntent);
+        if (target != null && target.IsAlive)
+            LaunchPursuit(target, Swarm.PursuitSpeed, scheduledDamage, scheduledReturnTime, scheduledIntent);
+        else LaunchStrike(scheduledAim + dir * scheduledOvershoot, scheduledSpeed, scheduledDamage, scheduledReturnTime, scheduledIntent);
         if (Swarm != null) Swarm.NotifySwordLaunched();   // mỗi kiếm trong loạt rời đội hình là một nhịp giật tay
     }
 
@@ -484,6 +596,11 @@ public class FlyingSword : MonoBehaviour
     /// <summary>Lao thẳng tới strikeEnd, chia nhỏ bước để không xuyên qua mục tiêu khi tốc độ cao.</summary>
     private void StepStrike(float dt)
     {
+        if (pursuing)
+        {
+            StepPursuit(dt);
+            return;
+        }
         float remainingStep = strikeSpeed * dt;
         const float maxSubStep = 0.4f;
         Vector3 dir = transform.forward;
@@ -496,10 +613,16 @@ public class FlyingSword : MonoBehaviour
 
             float step = Mathf.Min(remainingStep, maxSubStep);
             bool arrived = dist <= step;
-            transform.position = arrived ? strikeEnd : transform.position + dir * step;
+            Vector3 from = transform.position;
+            Vector3 toPosition = arrived ? strikeEnd : from + dir * step;
+            if (EnemyBlade.TryClash(this, from, toPosition)) return;
+            if (SwordFlightMath.HitsEnvironment(from, toPosition, HitRadius, Swarm.Owner))
+            { BeginReturn(returnSettleTime); return; }
+            transform.position = toPosition;
             remainingStep -= step;
 
             CheckHits(strikeDamage, true, 0f);
+            if (Mode != SwordMode.Strike) return;
 
             if (arrived)
             {
@@ -514,6 +637,70 @@ public class FlyingSword : MonoBehaviour
         transform.rotation = Quaternion.Slerp(transform.rotation, look, 1f - Mathf.Exp(-strikeTurnSharpness * dt));
     }
 
+    private void JoinFlock(Damageable target, Vector3 point)
+    {
+        flockPath = Swarm.GetFlockPath(target);
+        flockSlot = flockPath.Join(Swarm, this, target, point);
+    }
+
+    private void StepPursuit(float dt)
+    {
+        // A finished target ends this flight command, including destroyed/despawned enemies.
+        if (pursuitHadTarget && (pursuitTarget == null || !pursuitTarget.IsAlive || !pursuitTarget.isActiveAndEnabled))
+        {
+            BeginReturn(returnSettleTime);
+            return;
+        }
+        if (Swarm.LockedTarget != null && Swarm.LockedTarget.IsAlive && Swarm.LockedTarget != pursuitTarget)
+        {
+            JoinFlock(Swarm.LockedTarget, Swarm.LockedTarget.AimPoint);
+            pursuitTarget = Swarm.LockedTarget;
+            pursuitDefender = pursuitTarget.GetComponent<TaTu>();
+        }
+        if (pursuitTarget == null || !pursuitTarget.IsAlive || !pursuitTarget.isActiveAndEnabled)
+        {
+            pursuitTarget = Swarm.FindPursuitTarget(combatCenter, 30f);
+            if (pursuitTarget != null) JoinFlock(pursuitTarget, pursuitTarget.AimPoint);
+            pursuitDefender = pursuitTarget != null ? pursuitTarget.GetComponent<TaTu>() : null;
+        }
+        if (pursuitTarget != null) combatCenter = pursuitTarget.AimPoint;
+        if (pursuitTarget != null) pursuitHadTarget = true;
+        if (flockPath == null) JoinFlock(pursuitTarget, combatCenter);
+        Vector3 tangent;
+        Vector3 routePoint = flockPath.Sample(pursuitTarget, flockSlot, strikeSpeed, out tangent);
+        Vector3 frameStart = transform.position;
+        // Catch up smoothly when joining from the defensive wheel; never teleport onto the lane.
+        Vector3 frameEnd = Vector3.MoveTowards(frameStart, routePoint, strikeSpeed * 1.65f * dt);
+        int substeps = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(frameStart, frameEnd) / 0.3f));
+        for (int i = 0; i < substeps && Mode == SwordMode.Strike; i++)
+        {
+            bool recovering = Time.time < nextPassAt;
+            Vector3 next = Vector3.Lerp(frameStart, frameEnd, (i + 1f) / substeps);
+            Vector3 step = next - transform.position;
+            pursuitDirection = step.sqrMagnitude > 0.000001f ? step.normalized : tangent;
+            float moveSpeed = dt > 0f ? Vector3.Distance(frameStart, frameEnd) / dt : 0f;
+            Vector3 from = transform.position, to = next;
+            Velocity = pursuitDirection * moveSpeed;
+            transform.rotation = Quaternion.LookRotation(pursuitDirection, Vector3.up);
+            if (EnemyBlade.TryClash(this, from, to)) return;
+            if (pursuitDefender != null && pursuitDefender.TryBlockSword(this, from, to)) return;
+            if (SwordFlightMath.HitsEnvironment(from, to, HitRadius * 0.5f, Swarm.Owner))
+            { Deflect(returnSettleTime); return; }
+            transform.position = to;
+            if (recovering || pursuitTarget == null) continue;
+            CheckHits(strikeDamage, false, Swarm.PursuitHitInterval);
+            if (Mode != SwordMode.Strike) return;
+            if (Time.time < nextPassAt) continue;
+            if (pursuitTarget != null && (pursuitTarget.AimPoint - transform.position).sqrMagnitude < 0.5f)
+                BeginPassRecovery();
+        }
+    }
+
+    private void BeginPassRecovery()
+    {
+        nextPassAt = Time.time + Swarm.PursuitHitInterval;
+    }
+
     /// <summary>Kiểm tra thân kiếm có chạm vật nào có thể bị đánh không và gây sát thương.</summary>
     private void CheckHits(float damage, bool oncePerFlight, float interval)
     {
@@ -525,6 +712,10 @@ public class FlyingSword : MonoBehaviour
         {
             Damageable d;
             if (!Damageable.TryGet(OverlapBuffer[i], out d) || !d.IsAlive) continue;
+            if (pursuitTarget != null && d != pursuitTarget) continue;
+
+            TaTu defender = d.GetComponent<TaTu>();
+            if (defender != null && defender.TryBlockSword(this, a, b)) return;
 
             float last;
             bool hitBefore = hitTimes.TryGetValue(d, out last);
@@ -536,7 +727,13 @@ public class FlyingSword : MonoBehaviour
             d.TakeDamage(info);
 
             // Nhát chém tấn công (không phải chạm nhẹ của đội hình Vòng) thì có dừng hình và rung camera
-            if (oncePerFlight) Swarm.NotifyStrikeHit(d, strikeIntent);
+            if (oncePerFlight || pursuitTarget != null) Swarm.NotifyStrikeHit(d, strikeIntent);
+            if (pursuitTarget != null)
+            {
+                SuccessfulPasses++;
+                BeginPassRecovery();
+                return;
+            }
         }
     }
 }
