@@ -8,13 +8,6 @@
 
 Dự án sử dụng URP, Input System, Cinemachine và Visual Effect Graph. Unity Hub có thể cần Git để tải package MCP for Unity trong `Packages/manifest.json`.
 
-## Tính năng chính
-
-- Phi kiếm bay theo bầy, truy kích mục tiêu và giao đấu với kiếm đối phương.
-- Nhấn **R** để thu kiếm; kiếm tự thu khi mục tiêu chết.
-- **G** dùng hộ thể; **T** thi triển Kim Liên.
-- Bảng Admin hỗ trợ thử nghiệm, gồm tùy chọn máu vô hạn cho địch.
-
 ## Cấu trúc
 
 - `Assets/_Game/`: scene, script, prefab, shader, model và dữ liệu game.
