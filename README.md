@@ -1,6 +1,3 @@
-# Phàm Kiếm Lục
-
-Game hành động tu tiên 3D xây dựng bằng Unity, với ngự kiếm, đấu phi kiếm và thần thông.
 
 ## Mở dự án
 
