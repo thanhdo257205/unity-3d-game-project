@@ -208,7 +208,7 @@ public static class PhaKhongTestTool
 
     // ================= Chụp ảnh =================
 
-    /// <summary>Chụp màn hình Game có cả giao diện HUD: ô hồi chiêu Phá Không sẵn sàng, đang đếm ngược, và lúc nháy đỏ khi bấm V mà đang hồi.</summary>
+    /// <summary>Chụp màn hình Game có cả giao diện HUD: ô hồi chiêu Phá Không sẵn sàng, đang đếm ngược, và lúc nháy đỏ khi bấm E mà đang hồi.</summary>
     public static void RunHud(string tag)
     {
         if (!Application.isPlaying) { Debug.LogError("[PK] Cần đang Play trong SanTap."); return; }
@@ -230,13 +230,13 @@ public static class PhaKhongTestTool
         ScreenCapture.CaptureScreenshot("Assets/Screenshots/" + prefix + "_hud_dem_nguoc.png");
         Log("HUD đếm ngược: còn " + pk.CooldownRemaining.ToString("F1") + "s");
         yield return new Wait(0.6f);
-        pk.TestPressV();
+        pk.TestPressE();
         yield return null;
         yield return null;
         pk.TestClear();
         yield return new Wait(0.12f);
         ScreenCapture.CaptureScreenshot("Assets/Screenshots/" + prefix + "_hud_nhay_do.png");
-        Log("HUD nháy đỏ (bấm V khi đang hồi): đã chụp");
+        Log("HUD nháy đỏ (bấm E khi đang hồi): đã chụp");
         yield return new Wait(0.6f);
     }
 
@@ -274,11 +274,11 @@ public static class PhaKhongTestTool
         Place(new Vector3(30f, 0.1f, -45f), 0f);
         yield return new Wait(0.6f);
         Refill();
-        // Ảnh ngắm (giữ V)
-        pk.TestPressV();
+        // Ảnh ngắm (giữ E)
+        pk.TestPressE();
         yield return new Wait(0.5f);
         Capture("ngam");
-        pk.TestReleaseV();   // nhả V = thi triển (cần ít nhất một khung hình để PhaKhong đọc)
+        pk.TestReleaseE();   // nhả E = thi triển (cần ít nhất một khung hình để PhaKhong đọc)
         yield return null;
         yield return null;
         pk.TestClear();

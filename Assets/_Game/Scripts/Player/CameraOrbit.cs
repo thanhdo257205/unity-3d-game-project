@@ -38,7 +38,7 @@ public class CameraOrbit : MonoBehaviour
     [SerializeField] private bool lockCursorOnStart = true;
 
     [Header("Góc nhìn thứ nhất")]
-    [Tooltip("Phím đổi giữa góc nhìn thứ nhất và góc nhìn sau vai. V đã dành cho Phá Không.")]
+    [Tooltip("Phím đổi giữa góc nhìn thứ nhất và góc nhìn sau vai. E đã dành cho Phá Không.")]
     [SerializeField] private Key switchViewKey = Key.F;
 
     [Tooltip("Độ cao mắt so với chân nhân vật. Không bám xương đầu để tránh rung theo animation.")]

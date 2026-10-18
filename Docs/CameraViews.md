@@ -5,7 +5,7 @@
 - **Esc** thả chuột; bấm chuột trái vào Game để khóa lại. Không đổi góc nhìn khi bảng Admin hoặc màn hình chết đang khóa input camera.
 - Góc nhìn thứ nhất đặt camera ở tầm mắt, xoay theo chuột; W/S đi tới/lùi, A/D đi ngang và thân người hướng theo camera.
 - Thân/áo/tóc được ẩn khỏi hình ảnh nhưng vẫn đổ bóng; trở về góc nhìn thứ ba sẽ khôi phục hiển thị. Animation và va chạm vẫn hoạt động.
-- Khi bay bằng Phong Lôi Sí, camera vẫn ở tầm mắt và giữ hiệu ứng FOV. Phá Không giữ nguyên phím **V**.
+- Khi bay bằng Phong Lôi Sí, camera vẫn ở tầm mắt và giữ hiệu ứng FOV. Phá Không dùng phím **E**: giữ để ngắm, nhả để thi triển.
 
 Trong Inspector của `CameraTarget > CameraOrbit`, có thể chỉnh `Switch View Key` và `First Person Height` (mặc định 1.65 m).
 

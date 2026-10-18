@@ -36,7 +36,7 @@ public class HUD : MonoBehaviour
     [Tooltip("Pháp bảo Phong Lôi Sí (đối tượng NhanVat): ô của nó có viền sáng khi cánh đang mở, và pháp lực cánh rút được cộng vào con số tiêu hao.")]
     [SerializeField] private PhongLoiSi wings;
 
-    [Tooltip("Kỹ năng Phá Không (đối tượng NhanVat): HUD vẽ ô hồi chiêu phía trên ô 4 với số giây đếm ngược; ô nháy đỏ nhẹ khi bấm V mà thiếu pháp lực / đang hồi. Để trống thì tự tìm.")]
+    [Tooltip("Kỹ năng Phá Không (đối tượng NhanVat): HUD vẽ ô hồi chiêu phía trên ô 4 với số giây đếm ngược; ô nháy đỏ nhẹ khi bấm E mà thiếu pháp lực / đang hồi. Để trống thì tự tìm.")]
     [SerializeField] private PhaKhong phaKhong;
 
     [Header("Phông chữ")]
@@ -537,7 +537,7 @@ public class HUD : MonoBehaviour
         else if (itemNameText.gameObject.activeSelf) itemNameText.gameObject.SetActive(false);
     }
 
-    /// <summary>Ô hồi chiêu Phá Không nằm ngay phía trên ô 4: chữ V khi sẵn sàng, số giây đếm ngược khi đang hồi (lớp tối thu dần từ trên xuống), nháy đỏ nhẹ khi bấm V bị từ chối.</summary>
+    /// <summary>Ô hồi chiêu Phá Không nằm ngay phía trên ô 4: chữ E khi sẵn sàng, số giây đếm ngược khi đang hồi (lớp tối thu dần từ trên xuống), nháy đỏ nhẹ khi bấm E bị từ chối.</summary>
     private void BuildRiftIcon()
     {
         float size = hotbarSlotSize;
@@ -561,7 +561,7 @@ public class HUD : MonoBehaviour
         cool.fillOrigin = 1;   // đầy từ trên xuống, nên khi fillAmount giảm lớp tối thu dần về phía trên
         Stretch(cool.rectTransform);
 
-        TextMeshProUGUI key = MakeText(rt, "Phim", "V", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.5f));
+        TextMeshProUGUI key = MakeText(rt, "Phim", "E", 34, TextAnchor.MiddleCenter, new Color(1f, 0.9f, 0.5f));
         Stretch(key.rectTransform);
         Outline(key);
         TextMeshProUGUI time = MakeText(rt, "Giay", "", 30, TextAnchor.MiddleCenter, Color.white);
@@ -590,7 +590,7 @@ public class HUD : MonoBehaviour
         riftTime.text = cooling ? Mathf.CeilToInt(rem).ToString() : "";
         riftKey.enabled = !cooling;
         bool usable = wings.ReadyForRift;
-        // Nháy đỏ nhẹ khi bấm V bị từ chối (0.45 giây)
+        // Nháy đỏ nhẹ khi bấm E bị từ chối (0.45 giây)
         float rt = Time.unscaledTime - phaKhong.RejectedAtUnscaled;
         Color baseColor = hotbarSlotColor;
         if (rt >= 0f && rt < 0.45f)

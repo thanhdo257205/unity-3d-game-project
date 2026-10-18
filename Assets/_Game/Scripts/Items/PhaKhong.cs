@@ -5,14 +5,14 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Phá Không: kỹ năng xuyên không gian của Phong Lôi Sí (phím V). Gắn ở đối tượng NhanVat, cạnh PhongLoiSi.
+/// Phá Không: kỹ năng xuyên không gian của Phong Lôi Sí (phím E). Gắn ở đối tượng NhanVat, cạnh PhongLoiSi.
 /// Điều kiện: đang chọn ô 4 (ô chứa Phong Lôi Sí) và cánh đã mở xong. Dùng được cả trên đất lẫn khi bay.
-/// - NGẮM: giữ V thì hiện vòng tròn mờ ở điểm đến (theo hướng camera, xa tối đa theo cảnh giới: RealmData.PhaKhongDistance);
-///   nhả V thì thi triển; chuột phải khi đang giữ thì hủy. Bấm nhanh V = đi hết tầm theo hướng camera.
+/// - NGẮM: giữ E thì hiện vòng tròn mờ ở điểm đến (theo hướng camera, xa tối đa theo cảnh giới: RealmData.PhaKhongDistance);
+///   nhả E thì thi triển; chuột phải khi đang giữ thì hủy. Bấm nhanh E = đi hết tầm theo hướng camera.
 /// - ĐIỂM ĐẾN: nếu đường thẳng vướng vật cản thì dừng trước vật cản "Dừng trước vật cản" mét; không đáp vào trong vật thể hay dưới đất; không vượt trần bay.
 ///   Gần mặt đất thì đáp xuống đất. Gần hơn "Tầm tối thiểu" thì không thi triển được.
 /// - CHI PHÍ: 50 pháp lực, hồi 6 giây. Thiếu pháp lực hoặc đang hồi thì không làm gì, ô hồi chiêu trên HUD nháy đỏ nhẹ.
-/// - DIỄN BIẾN (giây từ lúc nhả V): 0.00 cổng vào mở trước mặt 2.5m, cánh khép, sét bùng mức 1 | 0.25 lao vào tâm cổng trong 0.15s kèm vệt vàng xanh
+/// - DIỄN BIẾN (giây từ lúc nhả E): 0.00 cổng vào mở trước mặt 2.5m, cánh khép, sét bùng mức 1 | 0.25 lao vào tâm cổng trong 0.15s kèm vệt vàng xanh
 ///   (bắt đầu bất tử, mất điều khiển) | 0.40 nhân vật biến mất, cổng vào đóng, cổng ra mở tại điểm đến, camera lướt tới trong 0.3s |
 ///   0.70 nhân vật lao ra khỏi cổng ra, cánh bung, sóng xung kích bán kính 5m nở trong 0.25s (25 sát thương lôi, choáng 0.6s), chớp sáng | 0.90 cổng ra đóng, trả điều khiển.
 ///   Ra giữa trời thì tiếp tục bay với vận tốc bay thường theo hướng cũ; ra trên đất thì đứng yên.
@@ -68,7 +68,7 @@ public class PhaKhong : MonoBehaviour
     [Tooltip("Bán kính vòng ngắm ở điểm đến (mét). Bằng bán kính cổng.")]
     [SerializeField, Min(0.3f)] private float aimRingRadius = 1.6f;
 
-    [Header("Diễn biến (giây từ lúc nhả V)")]
+    [Header("Diễn biến (giây từ lúc nhả E)")]
     [Tooltip("Cổng vào mở cách trước mặt bấy nhiêu mét.")]
     [SerializeField, Min(1f)] private float entranceDistance = 2.5f;
 
@@ -166,16 +166,16 @@ public class PhaKhong : MonoBehaviour
     /// <summary>Pháp lực mỗi lần thi triển.</summary>
     public float Cost => cost;
 
-    /// <summary>Đang giữ V để ngắm.</summary>
+    /// <summary>Đang giữ E để ngắm.</summary>
     public bool IsAiming => aiming;
 
-    /// <summary>Đang trong diễn biến Phá Không (từ lúc nhả V tới 0.9s).</summary>
+    /// <summary>Đang trong diễn biến Phá Không (từ lúc nhả E tới 0.9s).</summary>
     public bool IsCasting => casting;
 
     /// <summary>Số giây từ lúc thi triển (âm nếu chưa thi triển).</summary>
     public float CastElapsed => casting ? Time.time - castStart : -1f;
 
-    /// <summary>Thời điểm (Time.unscaledTime) lần bấm V gần nhất bị từ chối (thiếu pháp lực / đang hồi / điểm đến không hợp lệ). HUD nháy đỏ nhẹ.</summary>
+    /// <summary>Thời điểm (Time.unscaledTime) lần bấm E gần nhất bị từ chối (thiếu pháp lực / đang hồi / điểm đến không hợp lệ). HUD nháy đỏ nhẹ.</summary>
     public float RejectedAtUnscaled => rejectedAt;
 
     /// <summary>Điểm đến (tâm thân) của lần thi triển gần nhất.</summary>
@@ -190,7 +190,7 @@ public class PhaKhong : MonoBehaviour
     /// <summary>Thời gian choáng của sóng.</summary>
     public float ShockStun => shockStun;
 
-    /// <summary>Báo khi có lần bấm V bị từ chối.</summary>
+    /// <summary>Báo khi có lần bấm E bị từ chối.</summary>
     public event Action Rejected;
 
     /// <summary>Báo khi diễn biến kết thúc.</summary>
@@ -306,14 +306,14 @@ public class PhaKhong : MonoBehaviour
         if (kb == null && !testActive) return;
         Mouse ms = Mouse.current;
 
-        // Phím V (hoặc giả lập để kiểm thử qua code)
-        bool vDown, vUp, vHeld;
-        if (testActive) { vDown = testDown; vUp = testUp; vHeld = testV; testDown = false; testUp = false; }
-        else { vDown = kb.vKey.wasPressedThisFrame; vUp = kb.vKey.wasReleasedThisFrame; vHeld = kb.vKey.isPressed; }
+        // Phím E (hoặc giả lập để kiểm thử qua code)
+        bool activateDown, activateUp, activateHeld;
+        if (testActive) { activateDown = testDown; activateUp = testUp; activateHeld = testHeld; testDown = false; testUp = false; }
+        else { activateDown = kb.eKey.wasPressedThisFrame; activateUp = kb.eKey.wasReleasedThisFrame; activateHeld = kb.eKey.isPressed; }
 
         if (!aiming)
         {
-            if (vDown && Usable())
+            if (activateDown && Usable())
             {
                 if (CooldownRemaining > 0f) { Reject(false); return; }
                 if (!stats.HasMana(cost)) { Reject(true); return; }
@@ -323,34 +323,34 @@ public class PhaKhong : MonoBehaviour
             return;
         }
 
-        // Đang giữ V để ngắm
+        // Đang giữ E để ngắm
         bool cancel = (ms != null && ms.rightButton.wasPressedThisFrame) || testCancel || !Usable();
         testCancel = false;
         if (cancel) { CancelAim(); return; }
         Vector3 dir = AimDirection();
         bool ok = ComputeDestination(dir, out Vector3 dest, out _, out _);
         UpdateAimRing(ok, dest, dir);
-        if (vUp || !vHeld)
+        if (activateUp || !activateHeld)
         {
             CancelAim();
             Cast(dir);
         }
     }
 
-    // ----- Kiểm thử qua code (thay phím V và chuột phải) -----
-    private bool testActive, testDown, testUp, testV, testCancel;
+    // ----- Kiểm thử qua code (thay phím E và chuột phải) -----
+    private bool testActive, testDown, testUp, testHeld, testCancel;
 
-    /// <summary>Kiểm thử: giả lập bấm V xuống (bắt đầu ngắm nếu đủ điều kiện).</summary>
-    public void TestPressV() { testActive = true; testDown = true; testV = true; }
+    /// <summary>Kiểm thử: giả lập bấm E xuống (bắt đầu ngắm nếu đủ điều kiện).</summary>
+    public void TestPressE() { testActive = true; testDown = true; testHeld = true; }
 
-    /// <summary>Kiểm thử: giả lập nhả V (thi triển).</summary>
-    public void TestReleaseV() { testActive = true; testUp = true; testV = false; }
+    /// <summary>Kiểm thử: giả lập nhả E (thi triển).</summary>
+    public void TestReleaseE() { testActive = true; testUp = true; testHeld = false; }
 
     /// <summary>Kiểm thử: giả lập bấm chuột phải khi đang ngắm (hủy).</summary>
     public void TestRightClick() { testActive = true; testCancel = true; }
 
     /// <summary>Kiểm thử: trả đầu vào về bàn phím thật.</summary>
-    public void TestClear() { testActive = false; testDown = testUp = testV = testCancel = false; }
+    public void TestClear() { testActive = false; testDown = testUp = testHeld = testCancel = false; }
 
     private static Vector3 AimDirection()
     {
