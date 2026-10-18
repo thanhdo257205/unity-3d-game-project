@@ -14,7 +14,6 @@ Dự án sử dụng URP, Input System, Cinemachine và Visual Effect Graph. Uni
 - `Packages/`, `ProjectSettings/`: cấu hình cần thiết để mở lại dự án.
 - `ArtSource/`: nguồn mỹ thuật, gồm file Blender.
 - `Docs/`: tài liệu triển khai và kiểm thử.
-- `REF/`: video tham chiếu phục vụ phát triển.
 
 `Library/`, `Temp/`, `Logs/`, `UserSettings/`, bản build và ảnh/clip thử trong `Assets/Screenshots/` được bỏ qua theo `.gitignore`. Unity sẽ tạo lại cache khi mở dự án.
 
