@@ -79,6 +79,9 @@ public class AdminPanel : MonoBehaviour
     [Tooltip("Prefab Tà tu để nút 'Sinh Tà tu' tạo ra.")]
     [SerializeField] private GameObject taTuPrefab;
 
+    [Tooltip("Prefab yêu thú Warrok đã tối ưu bằng Blender.")]
+    [SerializeField] private GameObject yeuThuPrefab;
+
     [Header("Cài đặt")]
     [Tooltip("Phím bật/tắt bảng. Mặc định dấu huyền (cạnh phím 1).")]
     [SerializeField] private Key toggleKey = Key.Backquote;
@@ -263,6 +266,8 @@ public class AdminPanel : MonoBehaviour
         y -= 36f;
         AddButton(panel, "Sinh Thanh Lang", pad, y, bw, 31f, () => SinhKeDich(thanhLangPrefab));
         AddButton(panel, "Sinh Tà tu", pad + bw + 8f, y, bw, 31f, () => SinhKeDich(taTuPrefab));
+        y -= 36f;
+        AddButton(panel, "Sinh Yêu thú", pad, y, bw, 31f, () => SinhKeDich(yeuThuPrefab));
         y -= 36f;
         AddButton(panel, "Xóa hết kẻ địch", pad, y, bw, 31f, XoaKeDich);
         AddButton(panel, "Hồi sinh kẻ địch", pad + bw + 8f, y, bw, 31f, () => EnemyBase.ReviveAll());
