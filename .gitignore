@@ -48,6 +48,9 @@ desktop.ini
 *.blend1
 *.blend2
 
+# Video tham chiếu: chỉ giữ local
+/REF/
+
 # Ảnh chụp thử do công cụ MCP tạo
 /[Aa]ssets/Screenshots/
 /[Aa]ssets/Screenshots.meta

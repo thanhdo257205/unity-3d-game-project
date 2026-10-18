@@ -1,10 +1,14 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Cinemachine;
+using UnityEngine.Rendering;
+using System.Collections.Generic;
 
 /// <summary>
 /// "Điểm ngắm" của camera: bám theo đầu nhân vật và xoay theo chuột.
 /// Camera Cinemachine (góc nhìn thứ ba sau vai) sẽ đi theo đối tượng này,
 /// nên xoay chuột = xoay camera quanh nhân vật.
+/// Phím F đổi giữa góc nhìn sau vai và góc nhìn thứ nhất.
 /// Nhấn Esc để thả chuột ra khỏi cửa sổ Game, bấm chuột trái vào Game để khóa lại.
 /// (Rung camera khi trúng đòn do HitFeedback + Cinemachine Impulse đảm nhiệm.)
 /// </summary>
@@ -33,6 +37,21 @@ public class CameraOrbit : MonoBehaviour
     [Tooltip("Tự động khóa và ẩn con trỏ chuột khi bấm Play.")]
     [SerializeField] private bool lockCursorOnStart = true;
 
+    [Header("Góc nhìn thứ nhất")]
+    [Tooltip("Phím đổi giữa góc nhìn thứ nhất và góc nhìn sau vai. V đã dành cho Phá Không.")]
+    [SerializeField] private Key switchViewKey = Key.F;
+
+    [Tooltip("Độ cao mắt so với chân nhân vật. Không bám xương đầu để tránh rung theo animation.")]
+    [SerializeField, Min(0.1f)] private float firstPersonHeight = 1.65f;
+
+    private CinemachineCamera viewCamera;
+    private CinemachineThirdPersonFollow cameraBody;
+    private Vector3 savedShoulder, savedDamping;
+    private float savedArmLength, savedDistance, savedNearClip;
+    private readonly Dictionary<Renderer, ShadowCastingMode> hiddenRenderers = new Dictionary<Renderer, ShadowCastingMode>();
+
+    public bool IsFirstPerson { get; private set; }
+
     private float yaw;
     private float pitch;
 
@@ -60,6 +79,10 @@ public class CameraOrbit : MonoBehaviour
         HandleCursorLock();
         if (Cursor.lockState != CursorLockMode.Locked) return;
 
+        Keyboard kb = Keyboard.current;
+        if (kb != null && switchViewKey != Key.None && kb[switchViewKey].wasPressedThisFrame)
+            SetFirstPerson(!IsFirstPerson);
+
         Mouse mouse = Mouse.current;
         if (mouse == null) return;
 
@@ -72,6 +95,77 @@ public class CameraOrbit : MonoBehaviour
     private void LateUpdate()
     {
         SnapToTarget();
+    }
+
+    /// <summary>Đổi góc nhìn, giữ nguyên hướng ngắm và camera đang dùng cho chiến đấu/hiệu ứng.</summary>
+    public void SetFirstPerson(bool enabled)
+    {
+        if (enabled == IsFirstPerson) return;
+        if (enabled)
+        {
+            if (followTarget == null) return;
+            foreach (var candidate in FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None))
+            {
+                if (candidate.Follow != transform) continue;
+                var body = candidate.GetComponent<CinemachineThirdPersonFollow>();
+                if (body == null) continue;
+                viewCamera = candidate;
+                cameraBody = body;
+                break;
+            }
+            if (viewCamera == null || cameraBody == null) return;
+
+            savedShoulder = cameraBody.ShoulderOffset;
+            savedDamping = cameraBody.Damping;
+            savedArmLength = cameraBody.VerticalArmLength;
+            savedDistance = cameraBody.CameraDistance;
+            savedNearClip = viewCamera.Lens.NearClipPlane;
+            cameraBody.ShoulderOffset = Vector3.zero;
+            cameraBody.Damping = Vector3.zero;
+            cameraBody.VerticalArmLength = 0f;
+            cameraBody.CameraDistance = 0f;
+            var lens = viewCamera.Lens;
+            lens.NearClipPlane = 0.03f;
+            viewCamera.Lens = lens;
+
+            // Giữ bóng đổ, ẩn thân/áo/tóc để không che mắt. Không đổi enabled:
+            // Phá Không vẫn có thể tự ẩn/hiện nhân vật độc lập.
+            var model = followTarget.GetComponentInChildren<Animator>();
+            if (model != null)
+                foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (!(renderer is SkinnedMeshRenderer) && !(renderer is MeshRenderer)) continue;
+                    hiddenRenderers[renderer] = renderer.shadowCastingMode;
+                    renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+                }
+        }
+        else
+        {
+            if (cameraBody != null)
+            {
+                cameraBody.ShoulderOffset = savedShoulder;
+                cameraBody.Damping = savedDamping;
+                cameraBody.VerticalArmLength = savedArmLength;
+                cameraBody.CameraDistance = savedDistance;
+            }
+            if (viewCamera != null)
+            {
+                var lens = viewCamera.Lens;
+                lens.NearClipPlane = savedNearClip;
+                viewCamera.Lens = lens;
+            }
+            foreach (var entry in hiddenRenderers)
+                if (entry.Key != null) entry.Key.shadowCastingMode = entry.Value;
+            hiddenRenderers.Clear();
+        }
+        IsFirstPerson = enabled;
+        SnapToTarget();
+        if (viewCamera != null) viewCamera.PreviousStateIsValid = false;
+    }
+
+    private void OnDisable()
+    {
+        SetFirstPerson(false);
     }
 
     private Vector3 glideFrom;
@@ -93,9 +187,9 @@ public class CameraOrbit : MonoBehaviour
     {
         if (followTarget != null)
         {
-            Vector3 target = followTarget.position + Vector3.up * heightOffset;
+            Vector3 target = followTarget.position + Vector3.up * (IsFirstPerson ? firstPersonHeight : heightOffset);
             float g = (Time.time - glideStart) / glideDuration;
-            if (g >= 0f && g < 1f) target = Vector3.Lerp(glideFrom, target, g * g * (3f - 2f * g));
+            if (!IsFirstPerson && g >= 0f && g < 1f) target = Vector3.Lerp(glideFrom, target, g * g * (3f - 2f * g));
             transform.position = target;
         }
         transform.rotation = Quaternion.Euler(pitch, yaw, 0f);

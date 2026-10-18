@@ -238,6 +238,7 @@ public class PhongLoiSi : MonoBehaviour
     private Transform model;
     private CinemachineCamera cmCamera;
     private CinemachineThirdPersonFollow thirdPerson;
+    private CameraOrbit cameraOrbit;
     private float baseFov = 60f, baseDistance = 3.2f;
 
     // ----- Trạng thái -----
@@ -348,6 +349,7 @@ public class PhongLoiSi : MonoBehaviour
         if (swarm == null) swarm = FindAnyObjectByType<SwordSwarm>();
         if (feedback == null) feedback = FindAnyObjectByType<HitFeedback>();
         cmCamera = FindAnyObjectByType<CinemachineCamera>();
+        cameraOrbit = FindAnyObjectByType<CameraOrbit>();
         if (cmCamera != null)
         {
             thirdPerson = cmCamera.GetComponent<CinemachineThirdPersonFollow>();
@@ -967,7 +969,7 @@ public class PhongLoiSi : MonoBehaviour
         }
         camDist = Mathf.SmoothDamp(camDist, targetDist, ref camDistVel, cameraSmoothTime, Mathf.Infinity, dt);
         camFov = Mathf.SmoothDamp(camFov, targetFov, ref camFovVel, RiftFovBoost > 0.01f ? 0.08f : cameraSmoothTime, Mathf.Infinity, dt);
-        if (thirdPerson != null) thirdPerson.CameraDistance = camDist;
+        if (thirdPerson != null) thirdPerson.CameraDistance = cameraOrbit != null && cameraOrbit.IsFirstPerson ? 0f : camDist;
         LensSettings lens = cmCamera.Lens;
         lens.FieldOfView = camFov;
         cmCamera.Lens = lens;

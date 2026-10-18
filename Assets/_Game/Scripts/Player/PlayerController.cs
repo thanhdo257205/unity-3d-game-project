@@ -191,7 +191,7 @@ public class PlayerController : MonoBehaviour
         float accel = IsGrounded ? acceleration : acceleration * airControl;
         horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, targetVelocity, accel * Time.deltaTime);
 
-        if ((FaceCamera || FaceCameraForAttack) && cameraOrbit != null)
+        if (cameraOrbit != null && (FaceCamera || FaceCameraForAttack || (cameraOrbit.IsFirstPerson && !ControlLocked)))
         {
             // Đang bắn/đánh: quay mặt theo hướng camera nhìn
             Quaternion aimRotation = Quaternion.Euler(0f, cameraOrbit.Yaw, 0f);
