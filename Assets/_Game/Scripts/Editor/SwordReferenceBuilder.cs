@@ -111,8 +111,8 @@ public static class SwordReferenceBuilder
         var gold = new Color(1f, 0.56f, 0.08f, 1);
         Material ribbon = Ribbon("LinhKiem_Ribbon");
         Material trim = Body("LinhKiem_GoldTrim", new Color(0.75f, 0.46f, 0.1f), gold * 0.65f);
-        Material jade = Body("LinhKiem_JadeCore", green * 0.55f, green * 2.6f);
-        Material silver = Body("LinhKiem_JadeBlade", new Color(0.5f, 0.85f, 0.72f), green * 0.85f);
+        Material jade = Body("LinhKiem_JadeCore", green * 0.55f, green * 0.9f);
+        Material silver = Body("LinhKiem_JadeBlade", new Color(0.5f, 0.85f, 0.72f), green * 0.3f);
         Material goldBlade = Body("LinhKiem_GoldBlade", new Color(0.95f, 0.72f, 0.26f), gold * 1.1f);
         Material goldCore = Body("LinhKiem_GoldCore", Color.white, new Color(1f, 0.85f, 0.4f) * 2.2f);
         GameObject playerPrefab = Build("ThanhTrucKiem", "PhiKiemNgocAnh", mesh, new[] { silver, trim, jade }, ribbon, green, true);
