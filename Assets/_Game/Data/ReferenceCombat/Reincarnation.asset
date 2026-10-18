@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 128e76245d373a1499aad8c615b6373a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ReferenceSkillData
+  kind: 2
+  displayName: "Lu\xE2n H\u1ED3i Th\u1EA7n Quang"
+  key: 25
+  motion: {fileID: 5517801534114232704, guid: 0210428b4e0d6a244b4098ebc0778a84, type: 3}
+  manaCost: 38
+  cooldown: 12
+  chargeTime: 1.15
+  recoveryTime: 0.55
+  duration: 3.2
+  range: 14
+  radius: 5
+  damage: 48
+  stunTime: 0
+  primary: {r: 1, g: 0.36, b: 0.13, a: 0.72}
+  secondary: {r: 0.5, g: 0.15, b: 1, a: 0.42}
+  referenceTime: "05:06\u201305:18; 09:42\u201310:12"

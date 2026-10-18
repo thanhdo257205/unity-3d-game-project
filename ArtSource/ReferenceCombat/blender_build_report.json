@@ -1,0 +1,56 @@
+[
+  {
+    "clip": "FireIce",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "Mirrors",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "Reincarnation",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "BloodSword",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "ThunderSword",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "GoldenNet",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "clip": "MindPearl",
+    "frames": 55,
+    "fps": 30,
+    "release_normalized": 0.56
+  },
+  {
+    "mesh": "BloodBlade",
+    "triangles": 176
+  },
+  {
+    "mesh": "ThunderBlade",
+    "triangles": 116
+  },
+  {
+    "mesh": "MirrorFrame",
+    "triangles": 816
+  }
+]

@@ -149,6 +149,7 @@ public class ThanThongCombat : MonoBehaviour
 
     public static bool TryBlockProjectile(IEnemyProjectile projectile, Vector3 from, Vector3 to)
     {
+        if (NamCungCombat.TryBlock(projectile, from, to)) return true;
         var skill = Instance;
         if (skill == null || !skill.IsGuarding || !skill.CanCast || projectile.IsDone) return false;
         Vector3 center = skill.transform.position;

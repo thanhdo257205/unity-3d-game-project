@@ -9214,6 +9214,7 @@ GameObject:
   - component: {fileID: 2127460599}
   - component: {fileID: 2127460600}
   - component: {fileID: 2127460601}
+  - component: {fileID: 2127460602}
   m_Layer: 0
   m_Name: NhanVat
   m_TagString: Player
@@ -9705,6 +9706,33 @@ MonoBehaviour:
   wardDrain: 5
   lotusCost: 35
   lotusCooldown: 8
+--- !u!114 &2127460602
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127460589}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89033be5818ec9946b881bc281c47778, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NamCungCombat
+  skills:
+  - {fileID: 11400000, guid: 1282c545d2310c54cb2931e48df1181b, type: 2}
+  - {fileID: 11400000, guid: 936d9baf4dc6b1d48b08c00680de9823, type: 2}
+  - {fileID: 11400000, guid: fc2fa1c24595eb34397fd0287da67edf, type: 2}
+  - {fileID: 11400000, guid: ff9add9984e8b7143bfcbc0925355ffe, type: 2}
+  - {fileID: 11400000, guid: 8042d4c5e6a5ecc40b957ae2abb7bf61, type: 2}
+  - {fileID: 11400000, guid: c675f04d29ecdac48aea4aa2362cf07b, type: 2}
+  - {fileID: 11400000, guid: 2c102f8a2f3b4c243b5db89452721855, type: 2}
+  energyMaterial: {fileID: 2100000, guid: c89514adfd4c60740b19ee4b911e3e4d, type: 2}
+  surfaceMaterial: {fileID: 2100000, guid: 1162cbac72633924dbdd446f30b2592e, type: 2}
+  jadeMaterial: {fileID: 2100000, guid: 7ff7095f51f85da49abb1e81b0df7639, type: 2}
+  bloodMaterial: {fileID: 2100000, guid: 3181e99e680800f499c091e8677ae2aa, type: 2}
+  goldMaterial: {fileID: 2100000, guid: 363b87ce4203a57498b463b60a6e7be6, type: 2}
+  relicModels: {fileID: 919132149155446097, guid: 31a2b7fb85c36ab49860cb0eff883bcb, type: 3}
+  font: {fileID: 11400000, guid: 0148cf6b57cd5884ba9c564766c4062a, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

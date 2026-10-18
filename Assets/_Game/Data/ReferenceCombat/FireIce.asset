@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 128e76245d373a1499aad8c615b6373a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ReferenceSkillData
+  kind: 0
+  displayName: "\xC2m D\u01B0\u01A1ng B\u0103ng H\u1ECFa Ki\u1EBFm"
+  key: 22
+  motion: {fileID: 5517801534114232704, guid: 89acda7eda507f34485a687a0dd9b144, type: 3}
+  manaCost: 28
+  cooldown: 6
+  chargeTime: 1.05
+  recoveryTime: 0.55
+  duration: 1.55
+  range: 22
+  radius: 0.8
+  damage: 44
+  stunTime: 0
+  primary: {r: 1, g: 0.28, b: 0.06, a: 0.65}
+  secondary: {r: 0.1, g: 0.65, b: 1, a: 0.65}
+  referenceTime: "02:10\u201302:18; 03:20\u201303:34"

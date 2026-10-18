@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 128e76245d373a1499aad8c615b6373a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ReferenceSkillData
+  kind: 1
+  displayName: "Ng\u01B0ng Quang B\u1EA3o K\xEDnh"
+  key: 24
+  motion: {fileID: 5517801534114232704, guid: fba39ab254b3c6b49b80bc45c88cda88, type: 3}
+  manaCost: 30
+  cooldown: 10
+  chargeTime: 0.9
+  recoveryTime: 0.45
+  duration: 3.6
+  range: 22
+  radius: 2.4
+  damage: 24
+  stunTime: 0
+  primary: {r: 0.07, g: 0.8, b: 0.6, a: 0.52}
+  secondary: {r: 0.4, g: 1, b: 0.8, a: 0.4}
+  referenceTime: "04:29\u201304:47"

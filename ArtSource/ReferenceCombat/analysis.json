@@ -1,0 +1,37 @@
+{
+  "source": "REF/Nam Cung Khuyết - Thiên Nam Song Thánh full.mp4",
+  "scope": "Player abilities only, as selected by the user",
+  "duration_seconds": 748.4,
+  "fps": 30,
+  "resolution": [1280, 720],
+  "inspection": {
+    "overview": "125 timestamped samples, 6-second spacing across the full video",
+    "detail": "120 additional samples across six action windows: 120-140, 196-216, 268-288, 450-490, 590-630, 642-674 seconds",
+    "motion_method": "Hand-authored Blender two-bone arm solving and keyframes on the existing game rig; not automatic monocular motion capture",
+    "uncertainty": "Cuts, cloth and VFX hide some joint motion; the current game skeleton has no individual finger bones"
+  },
+  "combat_style": [
+    "Ranged control of hovering relics; body remains comparatively stable while arms direct attacks",
+    "Visible gathering gesture, a deliberate release marker, then recovery to the idle stance",
+    "Protective formations persist while the caster begins the next offensive action",
+    "Distinct silhouettes and opposed colors: orange/blue swords, five jade mirrors, dark solar disk, crimson blade, golden lightning, golden woven cage, violet pearl",
+    "Restraint and positioning precede a slower heavy strike"
+  ],
+  "skills": [
+    {"kind":"MindPearl","key":"U","name":"Khốn Tâm Châu","name_origin":"name referenced in dialogue around 01:24; violet orb visible 00:46-00:58","source_seconds":[46,58,78,84],"gesture":"forward open palm, supporting hand held near the chest","silhouette":"violet core and expanding intersecting circular field"},
+    {"kind":"FireIce","key":"H","name":"Âm Dương Băng Hỏa Kiếm","name_origin":"on-screen ability label around 02:12","source_seconds":[130,139,200,215],"gesture":"arms spread with separate elemental swords, hands converge overhead before release","silhouette":"paired orange fire and blue ice streams, crossing and spiralling together"},
+    {"kind":"Mirrors","key":"J","name":"Ngưng Quang Bảo Kính","name_origin":"on-screen label around 04:34-04:39","source_seconds":[269,287],"gesture":"seal at chest, one hand projects the command","silhouette":"multiple ornate jade disks around the caster, connected luminous rays and a protective enclosure"},
+    {"kind":"Reincarnation","key":"K","name":"Luân Hồi Thần Quang","name_origin":"on-screen label around 05:12","source_seconds":[306,318,582,612],"gesture":"gather at chest, controlled opening of the arms","silhouette":"dark circular center with orange rim, violet corona, later solar energy expansion"},
+    {"kind":"BloodSword","key":"L","name":"Huyết Kiếm","name_origin":"descriptive game name, not a verified canonical label","source_seconds":[458,488],"gesture":"draw the weapon back by the shoulder, thrust and direct it forward","silhouette":"large crimson sword, red branching energy threads and a trailing spiral"},
+    {"kind":"ThunderSword","key":"Y","name":"Kim Lôi Kiếm","name_origin":"descriptive game name, not a verified canonical label","source_seconds":[594,606],"gesture":"one arm raised vertically, other hand near the chest","silhouette":"upright golden blade and branching golden lightning"},
+    {"kind":"GoldenNet","key":"B","name":"Kim Ti Linh Võng","name_origin":"descriptive game name, not a verified canonical label","source_seconds":[645,672],"gesture":"gathering seal, both hands open to spread the net","silhouette":"dense gold woven enclosure, violet accents, contracting control field"}
+  ],
+  "adaptation": {
+    "animation": "Seven editable Blender actions, 55 frames at 30 fps each; release marker 0.56 normalized time",
+    "rig": "Existing NhanVat humanoid; upper-body override mask keeps the original root and legs",
+    "camera": "Player retains normal orbit/first-person controls; cinematic cuts and film camera movement are not forced onto gameplay",
+    "timing": "Film-scale exchanges compressed to 0.7-1.15 second charges plus 0.4-0.55 second recovery",
+    "rendering": "Localized effects with bounded particles/lines and restrained emission; no global red exposure or full-screen bloom escalation",
+    "models_triangles": {"BloodBlade":176,"ThunderBlade":116,"MirrorFrame":816}
+  }
+}
