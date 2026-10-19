@@ -30,10 +30,12 @@ Hướng dẫn cho scene sân tập hiện có trong repository. Các phím dư�
 1. Chọn ô có **Phong Lôi Sí** trên thanh vật phẩm (mặc định ô **4**), rồi bấm chuột trái để mở cánh. Cần đủ pháp lực.
 2. Giữ **Space** khoảng **0,3 giây** để cất cánh. Nếu đang ở trên không, bấm Space sẽ cất cánh ngay.
 3. Khi bay: **W/A/S/D** điều hướng, **Space** lên cao, **Ctrl** hạ thấp và **Shift trái** tăng tốc.
-4. **Giữ E** để ngắm Phá Không, **nhả E** để thi triển.
+4. Chọn lại ô chứa **Phong Lôi Sí** và chờ cánh mở xong. **Giữ E** để ngắm Phá Không, **nhả E** để thi triển; bấm **chuột phải trong lúc giữ E** để hủy ngắm.
 5. Bấm **Space hai lần nhanh** để bắt đầu hạ cánh. Tắt cánh giữa không trung có thể khiến nhân vật rơi và mất máu.
 
 Cánh tiếp tục tiêu hao pháp lực khi mở, kể cả lúc đứng đất. Xem thanh pháp lực trước khi bay cao. Góc nhìn thứ nhất cũng dùng được khi đang bay.
+
+Phá Không dùng được cả trên đất lẫn khi bay, nhưng chỉ khi đang chọn vật phẩm Phong Lôi Sí. Cánh vẫn mở sau khi đổi ô không có nghĩa là E dùng được ở ô khác. Mặc định chiêu tốn **50 pháp lực**, hồi **6 giây**; điểm đến quá gần hoặc không đủ khoảng trống sẽ không hợp lệ. Vật cản và trần bay giới hạn điểm đến.
 
 ## Thần thông và bộ chiêu theo video
 
@@ -63,6 +65,7 @@ Xem [thông tin yêu thú](YeuThu_Warrok.md) về model đã tối ưu và các 
 
 - **Không xoay camera hoặc không nhận phím chiêu:** bấm vào Game để khóa chuột; đóng Admin và kiểm tra nhân vật còn sống.
 - **Không cất cánh:** kiểm tra đã mở Phong Lôi Sí, còn pháp lực và giữ Space đủ lâu.
+- **E không thi triển:** chọn lại ô Phong Lôi Sí, đợi cánh mở xong, kiểm tra pháp lực/hồi chiêu và ngắm điểm đến hợp lệ. Chuột phải khi đang giữ E sẽ hủy ngắm.
 - **Chiêu chưa xuất hiện:** kiểm tra hồi chiêu, pháp lực và chờ động tác đang thi triển kết thúc. Một chiêu có tụ lực sẽ không phát đòn ngay khi bấm.
 - **Không tìm thấy video tham chiếu sau khi clone:** `REF/` chỉ được giữ local và nằm trong `.gitignore`; không cần video đó để chơi scene sân tập.
 
