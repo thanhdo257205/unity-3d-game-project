@@ -8,6 +8,10 @@
 
 Dự án sử dụng URP, Input System, Cinemachine và Visual Effect Graph. Unity Hub có thể cần Git để tải package MCP for Unity trong `Packages/manifest.json`.
 
+## Chơi thử
+
+Xem [hướng dẫn chơi thử](Docs/ChoiThu.md) để biết phím điều khiển, cách đổi góc nhìn, bay bằng Phong Lôi Sí, dùng Phá Không và thử bảy chiêu mới với yêu thú trong sân tập.
+
 ## Cấu trúc
 
 - `Assets/_Game/`: scene, script, prefab, shader, model và dữ liệu game.
